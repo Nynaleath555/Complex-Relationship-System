@@ -1,0 +1,84 @@
+/* =========================================================
+   COMPLEX REL — OUTPUT
+   Inner Self must remain first.
+   ========================================================= */
+
+InnerSelf("output");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  const input =
+    relationships.lastInput || "";
+
+  const output =
+    String(text || "");
+
+  if (!output) {
+    return {
+      text
+    };
+  }
+
+  /*
+    recentHistory is used ONLY to detect the
+    romantic interest.
+    It is NOT used to calculate relationship
+    changes from previous actions.
+  */
+
+  const recentHistory =
+    history
+      .slice(-8)
+      .map(
+        action => action.text || ""
+      )
+      .join("\n");
+
+  const combined =
+    input +
+    "\n" +
+    output +
+    "\n" +
+    recentHistory;
+
+  const romanticInterest =
+    REL.detectInterest(
+      storyCards,
+      combined
+    );
+
+  if (!romanticInterest) {
+    return {
+      text
+    };
+  }
+
+  /*
+    Relationship changes are calculated ONLY
+    from the current player input and the current
+    AI output.
+  */
+
+  REL.updateCharacter(
+    romanticInterest,
+    input,
+    output
+  );
+
+  relationships.lastOutput =
+    output;
+
+  RELStatus.update(
+    romanticInterest
+  );
+
+  return {
+    text
+  };
+
+};
+
+modifier(text);
