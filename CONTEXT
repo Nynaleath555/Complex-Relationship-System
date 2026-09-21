@@ -1,5 +1,5 @@
 /* =========================================================
-   COMPLEX REL — CONTEXT
+   COMPLEX REL V2 — CONTEXT
    Inner Self must remain first.
    ========================================================= */
 
@@ -9,10 +9,6 @@ const modifier = (text) => {
 
   const relationships =
     REL.init();
-
-  /*
-    Make sure the configuration card exists.
-  */
 
   REL.ensureConfigCard();
 
@@ -53,11 +49,9 @@ const modifier = (text) => {
     );
 
   if (relationshipContext) {
-
     text +=
       "\n\n" +
       relationshipContext;
-
   }
 
   return {
