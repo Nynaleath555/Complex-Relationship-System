@@ -1,5 +1,5 @@
 /* =========================================================
-   COMPLEX REL — OUTPUT
+   COMPLEX REL V2 — OUTPUT
    Inner Self must remain first.
    ========================================================= */
 
@@ -28,7 +28,6 @@ const modifier = (text) => {
     It is NOT used to calculate relationship
     changes from previous actions.
   */
-
   const recentHistory =
     history
       .slice(-8)
@@ -61,7 +60,6 @@ const modifier = (text) => {
     from the current player input and the current
     AI output.
   */
-
   REL.updateCharacter(
     romanticInterest,
     input,
