@@ -1,1 +1,32 @@
+/* =========================================================
+   COMPLEX REL — INPUT
+   Inner Self must remain first.
+   ========================================================= */
 
+InnerSelf("input");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  /*
+    Make sure the configuration card exists.
+    It is created automatically the first time the
+    script runs.
+  */
+
+  REL.ensureConfigCard();
+
+  relationships.lastInput =
+    String(text || "");
+
+  relationships.turn += 1;
+
+  return {
+    text
+  };
+
+};
+
+modifier(text);
