@@ -1,0 +1,137 @@
+/* =========================================================
+COMPLEX REL V2.1 — OUTPUT
+Inner Self must remain first.
+========================================================= */
+
+InnerSelf("output");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  const input =
+    relationships.lastInput || "";
+
+  const rawOutput =
+    String(text || "");
+
+  /*
+  Stability event markers are machine-readable instructions
+  emitted by the AI. Strip them before the output is stored
+  or shown to the player.
+  */
+
+  const stabilityResult =
+    REL.extractStabilityEvents(
+      rawOutput
+    );
+
+  const output =
+    stabilityResult.text;
+
+  relationships.__relStabilityEvents =
+    stabilityResult.events;
+
+  /*
+  A manual edit is administrative state management,
+  not a relationship interaction.
+
+  Consume the skip flag before returning so the
+  following output is never analyzed as a normal event.
+  */
+
+  if (
+    relationships.__relSkipNextOutputAnalysis
+  ) {
+
+    relationships.__relSkipNextOutputAnalysis =
+      false;
+
+    relationships.__relStabilityEvents =
+      [];
+
+    relationships.lastOutput =
+      output;
+
+    return {
+      text: output
+    };
+  }
+
+  if (!output) {
+
+    relationships.__relStabilityEvents =
+      [];
+
+    return {
+      text: output
+    };
+  }
+
+  /*
+  recentHistory is used ONLY to detect the
+  romantic interest.
+  It is NOT used to calculate relationship
+  changes from previous actions.
+  */
+
+  const recentHistory =
+    history
+      .slice(-8)
+      .map(
+        action => action.text || ""
+      )
+      .join("\n");
+
+  const combined =
+    input +
+    "\n" +
+    output +
+    "\n" +
+    recentHistory;
+
+  const romanticInterest =
+    REL.detectInterest(
+      storyCards,
+      combined
+    );
+
+  if (!romanticInterest) {
+
+    relationships.__relStabilityEvents =
+      [];
+
+    return {
+      text: output
+    };
+  }
+
+  /*
+  Relationship changes are calculated ONLY
+  from the current player input and the current
+  AI output.
+  */
+
+  REL.updateCharacter(
+    romanticInterest,
+    input,
+    output
+  );
+
+  relationships.lastOutput =
+    output;
+
+  RELStatus.update(
+    romanticInterest
+  );
+
+  relationships.__relStabilityEvents =
+    [];
+
+  return {
+    text: output
+  };
+};
+
+modifier(text);
