@@ -1,0 +1,78 @@
+/* =========================================================
+COMPLEX REL V2.1 — CONTEXT
+Inner Self must remain first.
+========================================================= */
+
+InnerSelf("context");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  REL.ensureConfigCard();
+
+  /*
+  Apply pending manual stat changes here as well,
+  so Continue, Guide and other generation flows can
+  consume a manual edit even when onInput was not called.
+  */
+
+  const manualEdit =
+    REL.applyManualEdit();
+
+  if (manualEdit.applied) {
+    RELStatus.update(
+      manualEdit.name
+    );
+  }
+
+  const recentHistory =
+    history
+      .slice(-8)
+      .map(
+        action => action.text || ""
+      )
+      .join("\n");
+
+  const combinedText =
+    String(text || "") +
+    "\n" +
+    recentHistory;
+
+  const romanticInterest =
+    REL.detectInterest(
+      storyCards,
+      combinedText
+    );
+
+  if (!romanticInterest) {
+    return {
+      text,
+      stop
+    };
+  }
+
+  REL.ensureCharacter(
+    romanticInterest
+  );
+
+  const relationshipContext =
+    REL.buildContext(
+      romanticInterest,
+      combinedText
+    );
+
+  if (relationshipContext) {
+    text +=
+      "\n\n" +
+      relationshipContext;
+  }
+
+  return {
+    text,
+    stop
+  };
+};
+
+modifier(text);
