@@ -1,0 +1,2739 @@
+/* =========================================================
+   COMPLEX REL V2.1
+   Reusable relationship system for AI Dungeon.
+
+   IMPORTANT:
+   Paste the original Inner Self library ABOVE this section.
+   Do not modify the Inner Self library itself.
+
+   Complex REL uses its own persistent state and does not
+   depend on Inner Self internals.
+   ========================================================= */
+
+const REL = {
+
+  CONFIG_CARD_KEY: "__REL_CONFIG__",
+  CONFIG_CARD_TYPE: "REL_CONFIG",
+  STATUS_CARD_KEY: "__REL_STATUS__",
+  STATUS_CARD_TYPE: "REL_STATUS",
+  CONFIG_PLACEHOLDER: "[Write character name here]",
+  MANUAL_MARKER: "[REL MANUAL EDIT]",
+  CHARACTER_MARKER: "[REL CHARACTER]",
+
+  STAT_LIMITS: {
+    friendship: { min: -100, max: 100 },
+    romance: { min: -100, max: 100 },
+    trust: { min: 0, max: 100 },
+    affection: { min: 0, max: 100 },
+    attraction: { min: 0, max: 100 },
+    comfort: { min: 0, max: 100 },
+    jealousy: { min: 0, max: 100 },
+    stability: { min: 0, max: 100 }
+  },
+
+  /* ---------------------------------------------------------
+     STABILITY EVENTS
+     --------------------------------------------------------- */
+
+  STABILITY_EVENT_TYPES: [
+    "ARGUMENT",
+    "SERIOUS_HURT",
+    "FAILURE",
+    "ISOLATION",
+    "SELF_DESTRUCTIVE",
+    "POSITIVE_RECOVERY",
+    "MUSIC_MILESTONE",
+    "SUPPORT",
+    "NONE"
+  ],
+
+  STABILITY_EVENT_PRIORITY: {
+    SELF_DESTRUCTIVE: 8,
+    SERIOUS_HURT: 7,
+    ARGUMENT: 6,
+    FAILURE: 5,
+    ISOLATION: 4,
+    POSITIVE_RECOVERY: 3,
+    MUSIC_MILESTONE: 2,
+    SUPPORT: 1,
+    NONE: 0
+  },
+
+  init: function () {
+    if (!state.relationships) {
+      state.relationships = {
+        romanticInterest: "",
+        characters: {},
+        lastInput: "",
+        lastOutput: "",
+        turn: 0
+      };
+    }
+
+    if (!state.relationships.characters) {
+      state.relationships.characters = {};
+    }
+
+    if (typeof state.relationships.romanticInterest !== "string") {
+      state.relationships.romanticInterest = "";
+    }
+
+    if (typeof state.relationships.lastInput !== "string") {
+      state.relationships.lastInput = "";
+    }
+
+    if (typeof state.relationships.lastOutput !== "string") {
+      state.relationships.lastOutput = "";
+    }
+
+    if (
+      typeof state.relationships.turn !== "number" ||
+      !isFinite(state.relationships.turn)
+    ) {
+      state.relationships.turn = 0;
+    }
+
+    if (
+      typeof state.relationships.__relPendingStabilityEvent !== "string"
+    ) {
+      state.relationships.__relPendingStabilityEvent = "NONE";
+    }
+
+    if (
+      typeof state.relationships.__relLastStabilityTurn !== "number"
+    ) {
+      state.relationships.__relLastStabilityTurn = -1;
+    }
+
+    if (
+      typeof state.relationships.__relLastStabilitySignature !== "string"
+    ) {
+      state.relationships.__relLastStabilitySignature = "";
+    }
+
+    if (
+      typeof state.relationships.__relSkipNextOutputAnalysis !== "boolean"
+    ) {
+      state.relationships.__relSkipNextOutputAnalysis = false;
+    }
+
+    return state.relationships;
+  },
+
+  clamp: function (value, min, max) {
+    return Math.max(
+      min,
+      Math.min(
+        max,
+        Number(value || 0)
+      )
+    );
+  },
+
+  hasAny: function (text, words) {
+    const source = String(text || "").toLowerCase();
+
+    return (words || []).some(word =>
+      source.includes(
+        String(word || "").toLowerCase()
+      )
+    );
+  },
+
+  /* ---------------------------------------------------------
+     CONFIG CARD
+     --------------------------------------------------------- */
+
+  getConfigCard: function () {
+    for (
+      let index = 0;
+      index < (storyCards || []).length;
+      index++
+    ) {
+      const card = storyCards[index];
+
+      const keys =
+        String(card.keys || "")
+          .split(",")
+          .map(value => value.trim());
+
+      if (
+        keys.includes(this.CONFIG_CARD_KEY) ||
+        card.type === this.CONFIG_CARD_TYPE
+      ) {
+        return {
+          card,
+          index
+        };
+      }
+    }
+
+    return null;
+  },
+
+  buildConfigNotes: function (name) {
+    return (
+      "Complex REL configuration card.\n\n" +
+
+      "Write the name of the single romantic interest on the line immediately below " +
+      this.CHARACTER_MARKER +
+      ".\n\n" +
+
+      this.CHARACTER_MARKER +
+      "\n" +
+
+      (name || this.CONFIG_PLACEHOLDER) +
+      "\n\n" +
+
+      this.MANUAL_MARKER +
+      "\n" +
+
+      "Set Apply to yes only when you want to overwrite selected relationship stats.\n" +
+      "Use a number from -100 to 100 for Friendship and Romance.\n" +
+      "Use a number from 0 to 100 for all other stats.\n" +
+      "Use unchanged to keep a stat at its current value.\n\n" +
+
+      "Apply: no\n" +
+      "Friendship: unchanged\n" +
+      "Romance: unchanged\n" +
+      "Trust: unchanged\n" +
+      "Affection: unchanged\n" +
+      "Attraction: unchanged\n" +
+      "Comfort: unchanged\n" +
+      "Jealousy: unchanged\n" +
+      "Stability: unchanged"
+    );
+  },
+
+  isConfigInstructionLine: function (line) {
+    const value = String(line || "").trim();
+    const lower = value.toLowerCase();
+
+    if (!value) return true;
+    if (value === this.CONFIG_PLACEHOLDER) return true;
+    if (value === this.MANUAL_MARKER) return true;
+    if (value === this.CHARACTER_MARKER) return true;
+    if (/^\[.*\]$/.test(value)) return true;
+
+    if (/^apply\s*:/i.test(value)) {
+      return true;
+    }
+
+    if (
+      /^(friendship|romance|trust|affection|attraction|comfort|jealousy|stability)\s*:/i.test(value)
+    ) {
+      return true;
+    }
+
+    if (lower.includes("complex rel configuration card")) {
+      return true;
+    }
+
+    if (lower.includes("write the name")) {
+      return true;
+    }
+
+    if (lower.includes("single romantic interest")) {
+      return true;
+    }
+
+    if (lower.includes("use a number")) {
+      return true;
+    }
+
+    if (lower.includes("use unchanged")) {
+      return true;
+    }
+
+    if (lower.includes("set apply to yes")) {
+      return true;
+    }
+
+    return false;
+  },
+
+  getLegacyConfiguredInterest: function (notes) {
+    const lines =
+      String(notes || "")
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+    for (
+      let index = lines.length - 1;
+      index >= 0;
+      index--
+    ) {
+      const line = lines[index];
+
+      if (line === this.MANUAL_MARKER) {
+        break;
+      }
+
+      if (this.isConfigInstructionLine(line)) {
+        continue;
+      }
+
+      return line;
+    }
+
+    return "";
+  },
+
+  getConfiguredInterest: function () {
+    const config =
+      this.getConfigCard();
+
+    if (!config || !config.card) {
+      return "";
+    }
+
+    const notes =
+      String(config.card.description || "");
+
+    const lines =
+      notes
+        .split(/\r?\n/)
+        .map(line => line.trim());
+
+    let characterMarkerIndex = -1;
+    let manualMarkerIndex = lines.length;
+
+    for (
+      let index = 0;
+      index < lines.length;
+      index++
+    ) {
+      if (
+        lines[index].toLowerCase() ===
+        this.CHARACTER_MARKER.toLowerCase()
+      ) {
+        characterMarkerIndex = index;
+      }
+
+      if (
+        lines[index].toLowerCase() ===
+        this.MANUAL_MARKER.toLowerCase()
+      ) {
+        manualMarkerIndex = index;
+        break;
+      }
+    }
+
+    if (characterMarkerIndex >= 0) {
+      for (
+        let index = characterMarkerIndex + 1;
+        index < manualMarkerIndex;
+        index++
+      ) {
+        const line = lines[index];
+
+        if (
+          !line ||
+          line === this.CONFIG_PLACEHOLDER
+        ) {
+          continue;
+        }
+
+        if (this.isConfigInstructionLine(line)) {
+          continue;
+        }
+
+        return line;
+      }
+
+      return "";
+    }
+
+    return this.getLegacyConfiguredInterest(notes);
+  },
+
+  ensureConfigCard: function () {
+    const existing =
+      this.getConfigCard();
+
+    if (existing) {
+      const notes =
+        String(existing.card.description || "");
+
+      /*
+        Automatically migrate old V1 configuration cards
+        to the V1.1 format without changing the configured name.
+      */
+      if (
+        !notes
+          .toLowerCase()
+          .includes(
+            this.MANUAL_MARKER.toLowerCase()
+          )
+      ) {
+        const name =
+          this.getConfiguredInterest();
+
+        existing.card.description =
+          this.buildConfigNotes(name);
+
+        existing.card.title =
+          "Complex REL Configuration";
+      }
+
+      return existing;
+    }
+
+    const entry =
+      "Complex REL configuration card. This card is used internally by the relationship system. " +
+      "Write the romantic interest in the Notes field. The configuration card does not need manual Triggers.";
+
+    const newIndex =
+      addStoryCard(
+        this.CONFIG_CARD_KEY,
+        entry,
+        this.CONFIG_CARD_TYPE
+      );
+
+    if (
+      newIndex !== false &&
+      storyCards &&
+      storyCards[newIndex]
+    ) {
+      storyCards[newIndex].description =
+        this.buildConfigNotes("");
+
+      storyCards[newIndex].title =
+        "Complex REL Configuration";
+
+      log(
+        "REL CONFIG CREATED — index=" +
+        String(newIndex)
+      );
+
+      return {
+        card: storyCards[newIndex],
+        index: newIndex
+      };
+    }
+
+    return this.getConfigCard();
+  },
+
+  /* ---------------------------------------------------------
+     MANUAL STAT EDITING
+     --------------------------------------------------------- */
+
+  parseManualEdit: function () {
+    const config =
+      this.getConfigCard();
+
+    if (!config || !config.card) {
+      return null;
+    }
+
+    const lines =
+      String(config.card.description || "")
+        .split(/\r?\n/)
+        .map(line => line.trim());
+
+    let manualIndex = -1;
+
+    for (
+      let index = 0;
+      index < lines.length;
+      index++
+    ) {
+      if (
+        lines[index].toLowerCase() ===
+        this.MANUAL_MARKER.toLowerCase()
+      ) {
+        manualIndex = index;
+        break;
+      }
+    }
+
+    if (manualIndex < 0) {
+      return null;
+    }
+
+    const result = {
+      apply: false,
+      values: {}
+    };
+
+    const statNames = [
+      "friendship",
+      "romance",
+      "trust",
+      "affection",
+      "attraction",
+      "comfort",
+      "jealousy",
+      "stability"
+    ];
+
+    for (
+      let index = manualIndex + 1;
+      index < lines.length;
+      index++
+    ) {
+      const line = lines[index];
+
+      if (!line) {
+        continue;
+      }
+
+      const applyMatch =
+        line.match(
+          /^apply\s*:\s*(.+)$/i
+        );
+
+      if (applyMatch) {
+        const value =
+          applyMatch[1]
+            .trim()
+            .toLowerCase();
+
+        result.apply =
+          value === "yes" ||
+          value === "true" ||
+          value === "on" ||
+          value === "1";
+
+        continue;
+      }
+
+      const statMatch =
+        line.match(
+          /^(friendship|romance|trust|affection|attraction|comfort|jealousy|stability)\s*:\s*(.+)$/i
+        );
+
+      if (!statMatch) {
+        continue;
+      }
+
+      const stat =
+        statMatch[1].toLowerCase();
+
+      const rawValue =
+        statMatch[2].trim();
+
+      if (
+        rawValue.toLowerCase() === "unchanged" ||
+        rawValue === ""
+      ) {
+        result.values[stat] = null;
+        continue;
+      }
+
+      const numericValue =
+        Number(rawValue);
+
+      if (isFinite(numericValue)) {
+        result.values[stat] =
+          numericValue;
+      }
+    }
+
+    return result;
+  },
+
+  disableManualEdit: function () {
+    const config =
+      this.getConfigCard();
+
+    if (!config || !config.card) {
+      return;
+    }
+
+    const lines =
+      String(config.card.description || "")
+        .split(/\r?\n/)
+        .map(line => {
+          const trimmed =
+            line.trim();
+
+          if (
+            /^apply\s*:/i.test(
+              trimmed
+            )
+          ) {
+            return "Apply: no";
+          }
+
+          if (
+            /^(friendship|romance|trust|affection|attraction|comfort|jealousy|stability)\s*:/i.test(
+              trimmed
+            )
+          ) {
+            const stat =
+              trimmed
+                .split(":")[0]
+                .trim();
+
+            const canonical =
+              stat.charAt(0).toUpperCase() +
+              stat.slice(1).toLowerCase();
+
+            return canonical +
+              ": unchanged";
+          }
+
+          return line;
+        });
+
+    config.card.description =
+      lines.join("\n");
+  },
+
+  applyManualEdit: function () {
+    const relationships =
+      this.init();
+
+    const name =
+      this.getConfiguredInterest();
+
+    const edit =
+      this.parseManualEdit();
+
+    if (
+      !name ||
+      !edit ||
+      !edit.apply
+    ) {
+      return {
+        applied: false,
+        name: name || ""
+      };
+    }
+
+    const character =
+      this.ensureCharacter(name);
+
+    /*
+      The explicitly configured name is authoritative.
+    */
+    relationships.romanticInterest =
+      name;
+
+    const statNames = [
+      "friendship",
+      "romance",
+      "trust",
+      "affection",
+      "attraction",
+      "comfort",
+      "jealousy",
+      "stability"
+    ];
+
+    let changed = false;
+
+    statNames.forEach(stat => {
+      const value =
+        edit.values[stat];
+
+      if (
+        typeof value !== "number" ||
+        !isFinite(value)
+      ) {
+        return;
+      }
+
+      const limits =
+        this.STAT_LIMITS[stat];
+
+      character[stat] =
+        this.clamp(
+          value,
+          limits.min,
+          limits.max
+        );
+
+      changed = true;
+    });
+
+    /*
+      Manual editing is not an interaction.
+      Reset transient history so the edit does not look
+      like a normal relationship event.
+    */
+    character.history.lastTurn =
+      relationships.turn;
+
+    character.history.lastEvent =
+      changed
+        ? "manualEdit"
+        : "";
+
+    character.history.recentNegative =
+      false;
+
+    character.history.recentSupport =
+      false;
+
+    character.history.lastSignature =
+      "";
+
+    /*
+      Prevent the generated response following a manual edit
+      from immediately changing the relationship again.
+    */
+    relationships.__relSkipNextOutputAnalysis =
+      true;
+
+    /*
+      Prevent the same manual edit from being applied again.
+    */
+    this.disableManualEdit();
+
+    /*
+      Update the visible status card immediately.
+    */
+    if (
+      typeof RELStatus !== "undefined" &&
+      RELStatus &&
+      typeof RELStatus.update === "function"
+    ) {
+      RELStatus.update(name);
+    }
+
+    log(
+      "REL MANUAL EDIT APPLIED — " +
+      name
+    );
+
+    return {
+      applied: true,
+      changed,
+      name
+    };
+  },
+
+  /* ---------------------------------------------------------
+     ROMANTIC INTEREST DETECTION
+     --------------------------------------------------------- */
+
+  getInterestFromText: function (contextText) {
+    const relationships =
+      this.init();
+
+    const configuredName =
+      this.getConfiguredInterest();
+
+    /*
+      Explicit configuration always wins.
+    */
+    if (configuredName) {
+      relationships.romanticInterest =
+        configuredName;
+
+      return configuredName;
+    }
+
+    if (
+      relationships.romanticInterest
+    ) {
+      return relationships.romanticInterest;
+    }
+
+    return "";
+  },
+
+  detectInterest: function (
+    cards,
+    contextText
+  ) {
+    const relationships =
+      this.init();
+
+    const configuredName =
+      this.getConfiguredInterest();
+
+    /*
+      Explicit configuration always wins,
+      including over a value left behind by an older version.
+    */
+    if (configuredName) {
+      relationships.romanticInterest =
+        configuredName;
+
+      return configuredName;
+    }
+
+    return (
+      relationships.romanticInterest ||
+      ""
+    );
+  },
+
+  /* ---------------------------------------------------------
+     CHARACTER ALIASES
+     --------------------------------------------------------- */
+
+  getAliases: function (name) {
+    const cleanName =
+      String(name || "")
+        .trim();
+
+    if (!cleanName) {
+      return [];
+    }
+
+    const aliases = [
+      cleanName
+    ];
+
+    const parts =
+      cleanName
+        .split(/\s+/)
+        .filter(Boolean);
+
+    /*
+      Add first and last name as useful aliases for
+      multi-word configured names.
+    */
+    if (parts.length >= 2) {
+      aliases.push(parts[0]);
+      aliases.push(
+        parts[parts.length - 1]
+      );
+    }
+
+    return [
+      ...new Set(aliases)
+    ];
+  },
+
+  nameMatches: function (
+    text,
+    name
+  ) {
+    const source =
+      String(text || "")
+        .toLowerCase();
+
+    return this
+      .getAliases(name)
+      .some(alias => {
+        const normalizedAlias =
+          String(alias || "")
+            .toLowerCase()
+            .trim();
+
+        if (!normalizedAlias) {
+          return false;
+        }
+
+        return source.includes(
+          normalizedAlias
+        );
+      });
+  },
+
+  escapeRegex: function (value) {
+    return String(value || "")
+      .replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+  },
+
+  /* ---------------------------------------------------------
+     STRONG ROMANTIC RECIPROCITY DETECTION
+     --------------------------------------------------------- */
+
+  detectStrongRomanticReciprocity: function (
+    name,
+    input,
+    output
+  ) {
+    const source =
+      String(input || "") +
+      "\n" +
+      String(output || "");
+
+    const lower =
+      source.toLowerCase();
+
+    /*
+      Explicit reciprocal language is always considered strong.
+    */
+    if (
+      /\bkiss(?:es|ed|ing)?\s+(?:you|me)\s+back\b/i.test(source) ||
+      /\bflirt(?:s|ed|ing)?\s+(?:with\s+)?(?:you|me)\s+back\b/i.test(source) ||
+      /\b(?:reciprocate|reciprocates|reciprocated|reciprocating)\b/i.test(source) ||
+      /\breturns?\s+(?:the\s+)?kiss\b/i.test(source) ||
+      /\breturn(?:s|ed|ing)?\s+(?:his|her|your)\s+kiss\b/i.test(source) ||
+      /\bmutual\s+(?:attraction|affection|desire|romantic\s+interest)\b/i.test(source)
+    ) {
+      return true;
+    }
+
+    const aliases =
+      this
+        .getAliases(name)
+        .filter(Boolean)
+        .map(alias =>
+          this.escapeRegex(alias)
+        );
+
+    if (!aliases.length) {
+      return false;
+    }
+
+    const namePattern =
+      "(?:" +
+      aliases.join("|") +
+      ")";
+
+    /*
+      A direct romantic action by the configured character toward
+      the player is strong enough to count as reciprocity.
+      Kissing and explicit flirting are intentionally stronger than
+      generic hugs or casual physical contact.
+    */
+    const directRomanticAction =
+      new RegExp(
+        "\\b" +
+        namePattern +
+        "\\b[\\s\\S]{0,120}\\b" +
+        "(?:kiss(?:es|ed|ing)?|flirt(?:s|ed|ing)?)[\\s\\S]{0,80}\\b(?:you|me)\\b",
+        "i"
+      );
+
+    if (
+      directRomanticAction.test(
+        source
+      )
+    ) {
+      return true;
+    }
+
+    /*
+      Explicitly mutual phrasing also counts even when the character
+      name is omitted from the sentence.
+    */
+    if (
+      /\b(?:you\s+both|both\s+of\s+you|the\s+two\s+of\s+you)\b[\s\S]{0,100}\bkiss(?:ed|ing)?\b/i.test(source) ||
+      /\b(?:you\s+both|both\s+of\s+you|the\s+two\s+of\s+you)\b[\s\S]{0,100}\bflirt(?:ed|ing)?\b/i.test(source)
+    ) {
+      return true;
+    }
+
+    /*
+      Keep the variable intentionally referenced so this detector
+      remains easy to expand without changing its public interface.
+    */
+    void lower;
+
+    return false;
+  },
+
+  /* ---------------------------------------------------------
+     CHARACTER INITIALIZATION
+     --------------------------------------------------------- */
+
+  ensureCharacter: function (name) {
+    const relationships =
+      this.init();
+
+    if (
+      !relationships.characters[name]
+    ) {
+      relationships.characters[name] = {
+        friendship: 0,
+        romance: 0,
+        trust: 50,
+        affection: 5,
+        attraction: 0,
+        comfort: 15,
+        jealousy: 0,
+        stability: 80,
+
+        history: {
+          lastTurn: 0,
+          lastEvent: "",
+          recentNegative: false,
+          recentSupport: false,
+          lastSignature: ""
+        }
+      };
+    }
+
+    return relationships.characters[name];
+  },
+
+  /* ---------------------------------------------------------
+     LEVEL GETTERS
+     --------------------------------------------------------- */
+
+  getFriendshipLevel: function (value) {
+    if (value <= -61) return "Enemy";
+    if (value <= -31) return "Persona Non Grata";
+    if (value <= 10) return "Neutral";
+    if (value <= 30) return "Acquaintance";
+    if (value <= 55) return "Friend";
+    if (value <= 80) return "Good Friend";
+
+    return "Best Friends";
+  },
+
+  getRomanceLevel: function (value) {
+    if (value <= 0) return "No Romantic Interest";
+    if (value <= 20) return "Mild Attraction";
+    if (value <= 40) return "Romantic Interest";
+    if (value <= 65) return "Falling in Love";
+    if (value <= 85) return "Sweethearts";
+
+    return "Soulmates";
+  },
+
+  getTrustLevel: function (value) {
+    if (value >= 80) return "Secure";
+    if (value >= 60) return "Trusting";
+    if (value >= 40) return "Wary";
+    if (value >= 20) return "Jealous";
+
+    return "Possessive";
+  },
+
+  getAffectionLevel: function (value) {
+    if (value < 20) return "Indifferent";
+    if (value < 40) return "Fond";
+    if (value < 60) return "Attached";
+    if (value < 80) return "Deeply Attached";
+
+    return "Devoted";
+  },
+
+  getAttractionLevel: function (value) {
+    if (value < 10) return "None";
+    if (value < 30) return "Curious";
+    if (value < 55) return "Attracted";
+    if (value < 80) return "Strongly Attracted";
+
+    return "Intense Attraction";
+  },
+
+  getComfortLevel: function (value) {
+    if (value < 20) return "Distant";
+    if (value < 40) return "Cautious";
+    if (value < 60) return "Comfortable";
+    if (value < 80) return "Close";
+
+    return "Intimate";
+  },
+
+  getJealousyLevel: function (value) {
+    if (value < 15) return "Calm";
+    if (value < 35) return "Alert";
+    if (value < 60) return "Jealous";
+    if (value < 80) return "Highly Jealous";
+
+    return "Obsessive";
+  },
+
+  getStabilityLevel: function (value) {
+    if (value >= 80) return "Stable";
+    if (value >= 60) return "Strained";
+    if (value >= 40) return "Unstable";
+    if (value >= 20) return "Distressed";
+
+    return "Crisis";
+  },
+
+  /* ---------------------------------------------------------
+     STABILITY EVENT PARSING
+     --------------------------------------------------------- */
+
+  normalizeStabilityEvent: function (value) {
+    const event =
+      String(value || "")
+        .trim()
+        .toUpperCase();
+
+    if (
+      this.STABILITY_EVENT_TYPES.includes(
+        event
+      )
+    ) {
+      return event;
+    }
+
+    return "NONE";
+  },
+
+  chooseStabilityEvent: function (events) {
+    const normalized =
+      (events || [])
+        .map(event =>
+          this.normalizeStabilityEvent(event)
+        )
+        .filter(event =>
+          event !== "NONE"
+        );
+
+    if (!normalized.length) {
+      return "NONE";
+    }
+
+    let selected =
+      "NONE";
+
+    normalized.forEach(event => {
+      const priority =
+        Number(
+          this.STABILITY_EVENT_PRIORITY[event] || 0
+        );
+
+      const selectedPriority =
+        Number(
+          this.STABILITY_EVENT_PRIORITY[selected] || 0
+        );
+
+      if (
+        priority >
+        selectedPriority
+      ) {
+        selected = event;
+      }
+    });
+
+    return selected;
+  },
+
+  extractStabilityEvents: function (text) {
+    const source =
+      String(text || "");
+
+    const events = [];
+
+    const markerRegex =
+      /\[\[REL_STABILITY_EVENT:\s*([A-Z_]+)\s*\]\]/gi;
+
+    let match;
+
+    while (
+      (match =
+        markerRegex.exec(source)) !== null
+    ) {
+      const event =
+        this.normalizeStabilityEvent(
+          match[1]
+        );
+
+      if (
+        event !== "NONE"
+      ) {
+        events.push(event);
+      }
+    }
+
+    const selectedEvent =
+      this.chooseStabilityEvent(
+        events
+      );
+
+    const cleanedText =
+      source
+        .replace(
+          /\s*\[\[REL_STABILITY_EVENT:\s*[A-Z_]+\s*\]\]\s*/gi,
+          "\n"
+        )
+        .replace(
+          /\n{3,}/g,
+          "\n\n"
+        )
+        .trim();
+
+    return {
+      text: cleanedText,
+      events:
+        selectedEvent === "NONE"
+          ? []
+          : [selectedEvent],
+      event:
+        selectedEvent
+    };
+  },
+
+  setPendingStabilityEvent: function (event) {
+    const relationships =
+      this.init();
+
+    relationships.__relPendingStabilityEvent =
+      this.normalizeStabilityEvent(
+        event
+      );
+
+    return relationships.__relPendingStabilityEvent;
+  },
+
+  getPendingStabilityEvent: function () {
+    const relationships =
+      this.init();
+
+    return this.normalizeStabilityEvent(
+      relationships.__relPendingStabilityEvent
+    );
+  },
+
+  clearPendingStabilityEvent: function () {
+    const relationships =
+      this.init();
+
+    relationships.__relPendingStabilityEvent =
+      "NONE";
+  },
+
+  /* ---------------------------------------------------------
+     STABILITY CLASSIFICATION INSTRUCTIONS
+     --------------------------------------------------------- */
+
+  buildStabilityEventInstructions: function (
+    name
+  ) {
+    const relationships =
+      this.init();
+
+    const latestPlayerAction =
+      String(
+        relationships.lastInput || ""
+      )
+        .trim()
+        .slice(0, 2000);
+
+    let context =
+      "[RELATIONSHIP STABILITY EVENT CLASSIFIER — INTERNAL]\n";
+
+    context +=
+      "Classify ONLY what actually happens during the current turn.\n";
+
+    context +=
+      "Do not classify events from backstory, memories, previous turns, character descriptions, internal thoughts about past events, or generic emotional language.\n";
+
+    context +=
+      "Do not use keywords as evidence by themselves. Judge the actual meaning of the current scene.\n";
+
+    context +=
+      "If the evidence is ambiguous or insufficient, classify NONE.\n";
+
+    context +=
+      "Choose exactly ONE event type. Never output multiple Stability event markers.\n\n";
+
+    context +=
+      "Current romantic interest: " +
+      name +
+      ".\n\n";
+
+    context +=
+      "Current player action:\n" +
+      (latestPlayerAction || "[No player action available]") +
+      "\n\n";
+
+    context +=
+      "EVENT DEFINITIONS:\n\n";
+
+    context +=
+      "ARGUMENT — Use only when the characters actually have a heated disagreement, confrontation, shouting match, or serious verbal conflict during this turn. Ordinary disagreement, teasing, tension, or a past argument does not count.\n\n";
+
+    context +=
+      "SERIOUS_HURT — Use only when the character actually suffers significant emotional harm during this turn. Ordinary sadness, embarrassment, discomfort, frustration, or temporary upset does not count.\n\n";
+
+    context +=
+      "FAILURE — Use only when the character actually fails at an important task, goal, responsibility, promise, performance, or commitment during this turn. A past failure or fear of failing does not count.\n\n";
+
+    context +=
+      "ISOLATION — Use only when the character actually withdraws from others or deliberately remains socially isolated during this turn. Brief solitude or simply being physically alone does not automatically count.\n\n";
+
+    context +=
+      "SELF_DESTRUCTIVE — Use only when the character actually engages in dangerous or clearly harmful self-destructive behavior during this turn. Mentioning such behavior or discussing it hypothetically does not count.\n\n";
+
+    context +=
+      "POSITIVE_RECOVERY — Use only when the character experiences a genuine improvement in emotional stability, coping, outlook, hope, or psychological state during this turn. A moment of calm without meaningful improvement does not automatically count.\n\n";
+
+    context +=
+      "MUSIC_MILESTONE — Use only when the character actually achieves a meaningful musical milestone during this turn, such as completing an important song, successful recording, audition, or significant performance. Merely discussing music does not count.\n\n";
+
+    context +=
+      "SUPPORT — Use only when meaningful emotional support is actually given or received during this turn. Mere presence or ordinary conversation does not automatically count.\n\n";
+
+    context +=
+      "NONE — Use when none of the definitions above clearly occurred during this turn, or when the evidence is ambiguous.\n\n";
+
+    context +=
+      "OUTPUT FORMAT:\n";
+
+    context +=
+      "End your response with exactly one marker in this format:\n";
+
+    context +=
+      "[[REL_STABILITY_EVENT: EVENT_NAME]]\n";
+
+    context +=
+      "The marker is internal metadata and will be removed before the player sees the response.\n";
+
+    context +=
+      "[END RELATIONSHIP STABILITY EVENT CLASSIFIER]";
+
+    return context;
+  },
+
+  /* ---------------------------------------------------------
+     STABILITY BEHAVIOR CONTEXT
+     --------------------------------------------------------- */
+
+  buildStabilityBehaviorContext: function (
+    name,
+    character
+  ) {
+    if (!character) {
+      return "";
+    }
+
+    let context =
+      "[RELATIONSHIP STABILITY BEHAVIOR — INTERNAL]\n";
+
+    if (
+      character.stability >= 60
+    ) {
+      context +=
+        name +
+        " is emotionally stable enough to function normally. Do not force distress behaviors merely because the relationship system exists.\n";
+    }
+
+    if (
+      character.stability >= 40 &&
+      character.stability < 60
+    ) {
+      context +=
+        name +
+        " is experiencing noticeable emotional strain. Subtle tension, fatigue, worry or vulnerability may appear when appropriate to the scene.\n";
+    }
+
+    if (
+      character.stability >= 20 &&
+      character.stability < 40
+    ) {
+      context +=
+        name +
+        " is experiencing significant emotional distress. Unhealthy coping, withdrawal, vulnerability, recklessness or emotional instability may emerge naturally when appropriate to the scene.\n";
+    }
+
+    if (
+      character.stability < 20
+    ) {
+      context +=
+        name +
+        " is experiencing a severe emotional crisis.\n";
+
+      context +=
+        name +
+        " MUST begin using smoking and alcohol as unhealthy coping behaviors, even if they have never smoked or drunk before.\n";
+
+      context +=
+        "If " +
+        name +
+        " already smokes or drinks, the intensity and frequency of those behaviors should increase.\n";
+
+      context +=
+        "Previous abstinence, lack of established use, or normal personality traits must not prevent this crisis behavior from emerging.\n";
+
+      context +=
+        "These behaviors should recur naturally when relevant to the scene rather than appearing mechanically in every response.\n";
+    }
+
+    context +=
+      "[END RELATIONSHIP STABILITY BEHAVIOR]";
+
+    return context;
+  },
+
+  /* ---------------------------------------------------------
+     INTERACTION ANALYSIS
+     --------------------------------------------------------- */
+
+  analyzeInteraction: function (
+    name,
+    input,
+    output
+  ) {
+    const combined =
+      String(input || "") +
+      "\n" +
+      String(output || "");
+
+    const signals = {
+
+      spentTime:
+        this.hasAny(
+          combined,
+          [
+            "spend time",
+            "spent time",
+            "hang out",
+            "hangs out",
+            "together",
+            "join",
+            "joined",
+            "visit",
+            "visited"
+          ]
+        ),
+
+      trivialConversation:
+        this.hasAny(
+          combined,
+          [
+            "talk",
+            "chat",
+            "conversation",
+            "conversation with",
+            "talking"
+          ]
+        ),
+
+      joking:
+        this.hasAny(
+          combined,
+          [
+            "joke",
+            "jokes",
+            "joking",
+            "laugh",
+            "laughs",
+            "laughing",
+            "tease",
+            "teasing"
+          ]
+        ),
+
+      sharedActivity:
+        this.hasAny(
+          combined,
+          [
+            "play together",
+            "practice together",
+            "watch together",
+            "go together",
+            "cook together",
+            "skate together",
+            "listen together"
+          ]
+        ),
+
+      caredFor:
+        this.hasAny(
+          combined,
+          [
+            "care for",
+            "care about",
+            "help",
+            "helped",
+            "helps",
+            "comfort",
+            "comforted",
+            "check on",
+            "checked on"
+          ]
+        ),
+
+      intimateSharing:
+        this.hasAny(
+          combined,
+          [
+            "secret",
+            "confide",
+            "confided",
+            "opened up",
+            "opens up",
+            "vulnerable",
+            "personal"
+          ]
+        ),
+
+      transparent:
+        this.hasAny(
+          combined,
+          [
+            "honest",
+            "honestly",
+            "tell the truth",
+            "truth",
+            "explain"
+          ]
+        ),
+
+      support:
+        this.hasAny(
+          combined,
+          [
+            "support",
+            "supported",
+            "encourage",
+            "encouraged",
+            "encouragement"
+          ]
+        ),
+
+      neglect:
+        this.hasAny(
+          combined,
+          [
+            "ignore",
+            "ignored",
+            "neglect",
+            "neglected",
+            "leave him",
+            "leave her"
+          ]
+        ),
+
+      betrayal:
+        this.hasAny(
+          combined,
+          [
+            "betrayed you",
+            "betrayed him",
+            "betrayed her",
+            "betrayal",
+            "cheated on you",
+            "cheated on him",
+            "cheated on her",
+            "cheat on you",
+            "cheat on him",
+            "cheat on her",
+            "lied to you",
+            "lied to him",
+            "lied to her",
+            "lie to you",
+            "lie to him",
+            "lie to her"
+          ]
+        ),
+
+      argument:
+        this.hasAny(
+          combined,
+          [
+            "argue",
+            "argued",
+            "argument",
+            "fight",
+            "fought",
+            "yell",
+            "yelled",
+            "shout",
+            "shouted"
+          ]
+        ),
+
+      seriousHurt:
+        this.hasAny(
+          combined,
+          [
+            "hurt",
+            "heartbroken",
+            "devastated",
+            "cruel",
+            "cruelly"
+          ]
+        ),
+
+      flirting:
+        this.hasAny(
+          combined,
+          [
+            "flirt",
+            "flirting",
+            "flirted",
+            "tease flirtatiously",
+            "wink",
+            "winks",
+            "winked"
+          ]
+        ),
+
+      romanticPhysical:
+        this.hasAny(
+          combined,
+          [
+            "kiss",
+            "kissed",
+            "kissing",
+            "cuddle",
+            "cuddled",
+            "hug",
+            "hugged",
+            "embrace",
+            "embraced",
+            "caress",
+            "caressed",
+            "touch"
+          ]
+        ),
+
+      romanticReciprocity:
+        this.hasAny(
+          combined,
+          [
+            "kiss back",
+            "kissed back",
+            "flirt back",
+            "flirted back",
+            "reciprocate",
+            "reciprocated",
+            "returns the kiss",
+            "returns his kiss",
+            "returns her kiss"
+          ]
+        ),
+
+      romanticRefusal:
+        this.hasAny(
+          combined,
+          [
+            "rejected you",
+            "rejected him",
+            "rejected her",
+            "rejects you",
+            "rejects him",
+            "rejects her",
+            "refused you",
+            "refused him",
+            "refused her",
+            "refuses you",
+            "refuses him",
+            "refuses her",
+            "turned you down",
+            "turned him down",
+            "turned her down",
+            "turns you down",
+            "turns him down",
+            "turns her down"
+          ]
+        ),
+
+      rivalInteraction:
+        this.hasAny(
+          combined,
+          [
+            "another man",
+            "another woman",
+            "other man",
+            "other woman",
+            "boyfriend",
+            "girlfriend",
+            "ex-boyfriend",
+            "ex-girlfriend",
+            "date someone",
+            "dating someone"
+          ]
+        ),
+
+      secrecyAboutOthers:
+        this.hasAny(
+          combined,
+          [
+            "hide",
+            "hidden",
+            "secret relationship",
+            "keep it secret",
+            "doesn't know",
+            "does not know"
+          ]
+        ),
+
+      failure:
+        this.hasAny(
+          combined,
+          [
+            "failed",
+            "failure",
+            "mistake",
+            "messed up",
+            "screwed up"
+          ]
+        ),
+
+      musicMilestone:
+        this.hasAny(
+          combined,
+          [
+            "concert",
+            "gig",
+            "performance",
+            "perform",
+            "performed",
+            "song",
+            "recording",
+            "audition"
+          ]
+        ),
+
+      positiveRecovery:
+        this.hasAny(
+          combined,
+          [
+            "recover",
+            "recovered",
+            "better",
+            "improving",
+            "improved",
+            "hopeful"
+          ]
+        ),
+
+      isolation:
+        this.hasAny(
+          combined,
+          [
+            "alone",
+            "isolated",
+            "isolate",
+            "withdraw",
+            "withdrew"
+          ]
+        ),
+
+      selfDestructive:
+        this.hasAny(
+          combined,
+          [
+            "self-destructive",
+            "self destructive",
+            "reckless",
+            "drinking alone",
+            "destroy himself",
+            "destroy herself"
+          ]
+        )
+
+    };
+
+    /*
+      Replace the old narrow reciprocity detector with a stronger
+      semantic detector while keeping every other interaction
+      signal unchanged.
+    */
+    signals.romanticReciprocity =
+      this.detectStrongRomanticReciprocity(
+        name,
+        input,
+        output
+      );
+
+    return signals;
+  },
+
+  /* ---------------------------------------------------------
+     UPDATE CHARACTER
+     --------------------------------------------------------- */
+
+  updateCharacter: function (
+    name,
+    input,
+    output
+  ) {
+    const relationships =
+      this.init();
+
+    /*
+      Manual edits are not interactions.
+      The next generated response must not immediately overwrite
+      or alter the manually chosen relationship state.
+    */
+    if (
+      relationships.__relSkipNextOutputAnalysis
+    ) {
+      relationships.__relSkipNextOutputAnalysis =
+        false;
+
+      return this.ensureCharacter(
+        name
+      );
+    }
+
+    const character =
+      this.ensureCharacter(name);
+
+    /*
+      Stability is now driven by semantic event metadata,
+      not by the old keyword-based Stability signals.
+      Other relationship statistics still use the original
+      interaction analysis below.
+    */
+    const parsedStability =
+      this.extractStabilityEvents(
+        output
+      );
+
+    let stabilityEvent =
+      this.getPendingStabilityEvent();
+
+    if (
+      stabilityEvent === "NONE" &&
+      parsedStability.event !== "NONE"
+    ) {
+      stabilityEvent =
+        parsedStability.event;
+    }
+
+    stabilityEvent =
+      this.normalizeStabilityEvent(
+        stabilityEvent
+      );
+
+    /* FRIENDSHIP */
+
+    const signals =
+      this.analyzeInteraction(
+        name,
+        input,
+        output
+      );
+
+    if (
+      signals.spentTime ||
+      signals.sharedActivity
+    ) {
+      character.friendship += 0.9;
+    }
+
+    if (
+      signals.trivialConversation ||
+      signals.joking
+    ) {
+      character.friendship += 0.45;
+    }
+
+    if (
+      signals.argument ||
+      signals.neglect ||
+      signals.betrayal
+    ) {
+      character.friendship -= 1.5;
+    }
+
+    if (
+      signals.seriousHurt
+    ) {
+      character.friendship -= 2.5;
+    }
+
+    /* TRUST */
+
+    if (signals.caredFor) {
+      character.trust += 1.25;
+    }
+
+    if (signals.intimateSharing) {
+      character.trust += 1.5;
+    }
+
+    if (signals.transparent) {
+      character.trust += 1.5;
+    }
+
+    if (signals.support) {
+      character.trust += 0.9;
+    }
+
+    if (signals.betrayal) {
+      character.trust -= 3.5;
+    }
+
+    if (signals.neglect) {
+      character.trust -= 1.25;
+    }
+
+    if (signals.seriousHurt) {
+      character.trust -= 2;
+    }
+
+    if (signals.argument) {
+      character.trust -= 0.75;
+    }
+
+    /* AFFECTION */
+
+    if (signals.caredFor) {
+      character.affection += 1;
+    }
+
+    if (signals.support) {
+      character.affection += 1;
+    }
+
+    if (
+      signals.spentTime ||
+      signals.sharedActivity
+    ) {
+      character.affection += 0.35;
+    }
+
+    if (signals.romanticPhysical) {
+      character.affection += 0.55;
+    }
+
+    if (signals.intimateSharing) {
+      character.affection += 0.7;
+    }
+
+    if (signals.neglect) {
+      character.affection -= 1;
+    }
+
+    if (signals.betrayal) {
+      character.affection -= 2;
+    }
+
+    /* ATTRACTION */
+
+    if (signals.flirting) {
+      character.attraction += 1.2;
+    }
+
+    if (signals.romanticPhysical) {
+      character.attraction += 1;
+    }
+
+    if (
+      signals.flirting &&
+      signals.romanticReciprocity
+    ) {
+      character.attraction += 0.9;
+    }
+
+    if (signals.romanticRefusal) {
+      character.attraction -= 0.5;
+    }
+
+    /* ROMANCE */
+
+    if (signals.romanticReciprocity) {
+      character.romance += 1.4;
+
+      if (
+        character.friendship >= 30 &&
+        character.trust >= 50 &&
+        character.comfort >= 35
+      ) {
+        character.romance += 0.6;
+      }
+
+      if (
+        character.attraction >= 25 ||
+        character.affection >= 20
+      ) {
+        character.romance += 0.45;
+      }
+    }
+
+    if (signals.romanticRefusal) {
+      character.romance -= 1;
+    }
+
+    if (
+      signals.betrayal &&
+      character.romance > 0
+    ) {
+      character.romance -= 2;
+    }
+
+    if (
+      signals.seriousHurt &&
+      character.romance > 0
+    ) {
+      character.romance -= 1;
+    }
+
+    /* JEALOUSY */
+
+    if (signals.rivalInteraction) {
+      if (
+        character.affection >= 40 ||
+        character.romance >= 20
+      ) {
+        character.jealousy += 2;
+      } else {
+        character.jealousy += 0.5;
+      }
+
+      if (character.trust < 40) {
+        character.jealousy += 1.5;
+      }
+    }
+
+    if (signals.secrecyAboutOthers) {
+      if (character.romance >= 20) {
+        character.jealousy += 1.5;
+      } else if (character.trust < 50) {
+        character.jealousy += 1;
+      }
+    }
+
+    /* COMFORT */
+
+    if (
+      signals.caredFor ||
+      signals.support
+    ) {
+      character.comfort += 0.9;
+    }
+
+    if (signals.intimateSharing) {
+      character.comfort += 0.8;
+    }
+
+    if (
+      signals.romanticPhysical &&
+      character.comfort >= 30
+    ) {
+      character.comfort += 0.7;
+    }
+
+    if (signals.neglect) {
+      character.comfort -= 1;
+    }
+
+    if (signals.betrayal) {
+      character.comfort -= 2;
+    }
+
+    if (signals.argument) {
+      character.comfort -= 0.8;
+    }
+
+    if (signals.romanticRefusal) {
+      character.comfort -= 0.5;
+    }
+
+    /* ---------------------------------------------------------
+       STABILITY
+       ---------------------------------------------------------
+
+       Stability no longer reads argument, hurt, failure,
+       isolation, self-destructive, music, recovery or support
+       keywords directly.
+
+       Only the semantic event classifier can trigger the
+       direct Stability event change.
+       --------------------------------------------------------- */
+
+    const stabilityTurn =
+      relationships.turn;
+
+    const stabilitySignature =
+      [
+        stabilityTurn,
+        input,
+        output,
+        stabilityEvent
+      ]
+        .join("|")
+        .slice(0, 1000);
+
+    const stabilityAlreadyProcessed =
+      relationships.__relLastStabilityTurn ===
+        stabilityTurn &&
+      relationships.__relLastStabilitySignature ===
+        stabilitySignature;
+
+    if (
+      !stabilityAlreadyProcessed
+    ) {
+
+      if (
+        stabilityEvent ===
+        "ARGUMENT"
+      ) {
+        character.stability -= 4;
+      }
+
+      if (
+        stabilityEvent ===
+        "SERIOUS_HURT"
+      ) {
+        character.stability -= 5;
+      }
+
+      if (
+        stabilityEvent ===
+        "FAILURE"
+      ) {
+        character.stability -= 4;
+      }
+
+      if (
+        stabilityEvent ===
+        "ISOLATION"
+      ) {
+        character.stability -= 2;
+      }
+
+      if (
+        stabilityEvent ===
+        "SELF_DESTRUCTIVE"
+      ) {
+        character.stability -= 6;
+      }
+
+      if (
+        stabilityEvent ===
+        "POSITIVE_RECOVERY"
+      ) {
+        character.stability += 4;
+      }
+
+      if (
+        stabilityEvent ===
+        "MUSIC_MILESTONE"
+      ) {
+        character.stability += 2;
+      }
+
+      if (
+        stabilityEvent ===
+        "SUPPORT"
+      ) {
+        character.stability += 0.6;
+      }
+
+      /*
+        Preserve the original combined deterioration rule.
+        It depends on relationship state, not keyword detection.
+      */
+      if (
+        character.trust < 40 &&
+        character.comfort < 30 &&
+        character.jealousy >= 60
+      ) {
+        character.stability -= 1.5;
+      }
+
+      /*
+        Preserve natural Stability recovery, but determine whether
+        recovery is allowed from semantic Stability events only.
+        Positive events can still receive the original +0.1 recovery.
+      */
+      const negativeStabilityEvent =
+        stabilityEvent === "ARGUMENT" ||
+        stabilityEvent === "SERIOUS_HURT" ||
+        stabilityEvent === "FAILURE" ||
+        stabilityEvent === "ISOLATION" ||
+        stabilityEvent === "SELF_DESTRUCTIVE";
+
+      if (
+        !negativeStabilityEvent &&
+        character.stability < 80
+      ) {
+        character.stability += 0.1;
+      }
+
+      relationships.__relLastStabilityTurn =
+        stabilityTurn;
+
+      relationships.__relLastStabilitySignature =
+        stabilitySignature;
+    }
+
+    /*
+      The event is consumed after the current update.
+    */
+    relationships.__relPendingStabilityEvent =
+      "NONE";
+
+    /* NATURAL JEALOUSY RECOVERY */
+
+    if (
+      !signals.rivalInteraction &&
+      !signals.secrecyAboutOthers
+    ) {
+      character.jealousy -= 0.15;
+    }
+
+    /* CLAMP VALUES */
+
+    character.friendship =
+      this.clamp(
+        character.friendship,
+        -100,
+        100
+      );
+
+    character.romance =
+      this.clamp(
+        character.romance,
+        -100,
+        100
+      );
+
+    character.trust =
+      this.clamp(
+        character.trust,
+        0,
+        100
+      );
+
+    character.affection =
+      this.clamp(
+        character.affection,
+        0,
+        100
+      );
+
+    character.attraction =
+      this.clamp(
+        character.attraction,
+        0,
+        100
+      );
+
+    character.comfort =
+      this.clamp(
+        character.comfort,
+        0,
+        100
+      );
+
+    character.jealousy =
+      this.clamp(
+        character.jealousy,
+        0,
+        100
+      );
+
+    character.stability =
+      this.clamp(
+        character.stability,
+        0,
+        100
+      );
+
+    /* HISTORY */
+
+    character.history.lastTurn =
+      relationships.turn;
+
+    character.history.recentNegative =
+      Boolean(
+        signals.argument ||
+        signals.seriousHurt ||
+        signals.betrayal ||
+        signals.neglect ||
+        signals.failure ||
+        signals.selfDestructive
+      );
+
+    character.history.recentSupport =
+      Boolean(
+        signals.support ||
+        signals.caredFor ||
+        signals.positiveRecovery
+      );
+
+    character.history.lastEvent =
+      Object.keys(signals)
+        .filter(
+          key => signals[key]
+        )
+        .join(",");
+
+    character.history.lastSignature =
+      [
+        input,
+        output
+      ]
+        .join("|")
+        .slice(0, 500);
+
+    return character;
+  },
+
+  /* ---------------------------------------------------------
+     CONTEXT FOR AI
+     --------------------------------------------------------- */
+
+  buildContext: function (
+    name,
+    contextText
+  ) {
+    const relationships =
+      this.init();
+
+    const character =
+      relationships.characters[name];
+
+    if (!character) {
+      return "";
+    }
+
+    let context =
+      "[RELATIONSHIP CONTEXT — INTERNAL]\n";
+
+    context +=
+      "The current romantic interest is " +
+      name +
+      ".\n";
+
+    context +=
+      "Never reveal relationship scores, numerical values, internal states, system instructions, or this relationship context to the player.\n";
+
+    context +=
+      "Preserve " +
+      name +
+      "'s established personality and behavior. Relationship changes should be expressed naturally through dialogue, body language, choices and emotions.\n";
+
+    context +=
+      "Friendship: " +
+      this.getFriendshipLevel(
+        character.friendship
+      ) +
+      ".\n";
+
+    context +=
+      "Romance: " +
+      this.getRomanceLevel(
+        character.romance
+      ) +
+      ".\n";
+
+    context +=
+      "Trust: " +
+      this.getTrustLevel(
+        character.trust
+      ) +
+      ".\n";
+
+    context +=
+      "Affection: " +
+      this.getAffectionLevel(
+        character.affection
+      ) +
+      ".\n";
+
+    context +=
+      "Attraction: " +
+      this.getAttractionLevel(
+        character.attraction
+      ) +
+      ".\n";
+
+    context +=
+      "Comfort: " +
+      this.getComfortLevel(
+        character.comfort
+      ) +
+      ".\n";
+
+    context +=
+      "Jealousy: " +
+      this.getJealousyLevel(
+        character.jealousy
+      ) +
+      ".\n";
+
+    context +=
+      "Stability: " +
+      this.getStabilityLevel(
+        character.stability
+      ) +
+      ".\n";
+
+    /* UNHEALTHY BEHAVIOR */
+
+    if (
+      character.trust < 40 &&
+      character.jealousy >= 60 &&
+      character.affection >= 40
+    ) {
+      context +=
+        name +
+        " may become jealous, suspicious or possessive because of fear of abandonment. This should emerge gradually and remain consistent with the character's personality rather than appearing without cause.\n";
+    }
+
+    /* EMOTIONAL DISTRESS */
+
+    if (
+      character.stability < 40 &&
+      character.comfort < 30
+    ) {
+      context +=
+        name +
+        " is experiencing significant emotional distress. Their behavior may become withdrawn, vulnerable, reckless or emotionally unstable depending on the scene.\n";
+    }
+
+    /*
+      Stability behavior is deliberately separate from the
+      numerical Stability event processor.
+    */
+    context +=
+      this.buildStabilityBehaviorContext(
+        name,
+        character
+      ) +
+      "\n";
+
+    context +=
+      "[END RELATIONSHIP CONTEXT]";
+
+    /*
+      The event classifier is context metadata used during generation.
+      It must remain internal and must never be revealed to the player.
+    */
+    context +=
+      "\n\n" +
+      this.buildStabilityEventInstructions(
+        name
+      );
+
+    return context;
+  }
+
+};
+
+
+/* =========================================================
+   RELATIONSHIP STATUS CARD
+   ========================================================= */
+
+const RELStatus = {
+
+  CARD_TYPE: "REL_STATUS",
+  STATUS_KEY: "__REL_STATUS__",
+
+  /* ---------------------------------------------------------
+     LEVEL LABELS
+     --------------------------------------------------------- */
+
+  getFriendshipLabel: function (value) {
+    if (value <= -61) return "Enemy";
+    if (value <= -31) return "Persona Non Grata";
+    if (value <= 10) return "Neutral";
+    if (value <= 30) return "Acquaintance";
+    if (value <= 55) return "Friend";
+    if (value <= 80) return "Good Friend";
+
+    return "Best Friends";
+  },
+
+  getRomanceLabel: function (value) {
+    if (value <= 0) return "No Romantic Interest";
+    if (value <= 20) return "Mild Attraction";
+    if (value <= 40) return "Romantic Interest";
+    if (value <= 65) return "Falling in Love";
+    if (value <= 85) return "Sweethearts";
+
+    return "Soulmates";
+  },
+
+  getTrustLabel: function (value) {
+    if (value >= 80) return "Secure";
+    if (value >= 60) return "Trusting";
+    if (value >= 40) return "Wary";
+    if (value >= 20) return "Jealous";
+
+    return "Possessive";
+  },
+
+  getAffectionLabel: function (value) {
+    if (value < 20) return "Indifferent";
+    if (value < 40) return "Fond";
+    if (value < 60) return "Attached";
+    if (value < 80) return "Deeply Attached";
+
+    return "Devoted";
+  },
+
+  getAttractionLabel: function (value) {
+    if (value < 10) return "None";
+    if (value < 30) return "Curious";
+    if (value < 55) return "Attracted";
+    if (value < 80) return "Strongly Attracted";
+
+    return "Intense Attraction";
+  },
+
+  getComfortLabel: function (value) {
+    if (value < 20) return "Distant";
+    if (value < 40) return "Cautious";
+    if (value < 60) return "Comfortable";
+    if (value < 80) return "Close";
+
+    return "Intimate";
+  },
+
+  getJealousyLabel: function (value) {
+    if (value < 15) return "Calm";
+    if (value < 35) return "Alert";
+    if (value < 60) return "Jealous";
+    if (value < 80) return "Highly Jealous";
+
+    return "Obsessive";
+  },
+
+  getStabilityLabel: function (value) {
+    if (value >= 80) return "Stable";
+    if (value >= 60) return "Strained";
+    if (value >= 40) return "Unstable";
+    if (value >= 20) return "Distressed";
+
+    return "Crisis";
+  },
+
+  /* ---------------------------------------------------------
+     NUMBER FORMATTING
+     --------------------------------------------------------- */
+
+  round: function (value) {
+    return (
+      Math.round(
+        Number(value || 0) * 10
+      ) / 10
+    );
+  },
+
+  /* ---------------------------------------------------------
+     STATUS CARD KEY
+     --------------------------------------------------------- */
+
+  getCardKey: function () {
+    return this.STATUS_KEY;
+  },
+
+  /* ---------------------------------------------------------
+     BUILD PLAYER-VISIBLE ENTRY
+     --------------------------------------------------------- */
+
+  buildEntry: function (
+    characterName,
+    character
+  ) {
+    const friendship =
+      this.round(
+        character.friendship
+      );
+
+    const romance =
+      this.round(
+        character.romance
+      );
+
+    const trust =
+      this.round(
+        character.trust
+      );
+
+    const affection =
+      this.round(
+        character.affection
+      );
+
+    const attraction =
+      this.round(
+        character.attraction
+      );
+
+    const comfort =
+      this.round(
+        character.comfort
+      );
+
+    const jealousy =
+      this.round(
+        character.jealousy
+      );
+
+    const stability =
+      this.round(
+        character.stability
+      );
+
+    return (
+      characterName +
+      " — Relationship\n\n" +
+
+      "Friendship: " +
+      friendship +
+      " — " +
+      this.getFriendshipLabel(
+        friendship
+      ) +
+      "\n" +
+
+      "Romance: " +
+      romance +
+      " — " +
+      this.getRomanceLabel(
+        romance
+      ) +
+      "\n" +
+
+      "Trust: " +
+      trust +
+      " — " +
+      this.getTrustLabel(
+        trust
+      ) +
+      "\n" +
+
+      "Affection: " +
+      affection +
+      " — " +
+      this.getAffectionLabel(
+        affection
+      ) +
+      "\n" +
+
+      "Attraction: " +
+      attraction +
+      " — " +
+      this.getAttractionLabel(
+        attraction
+      ) +
+      "\n" +
+
+      "Comfort: " +
+      comfort +
+      " — " +
+      this.getComfortLabel(
+        comfort
+      ) +
+      "\n" +
+
+      "Jealousy: " +
+      jealousy +
+      " — " +
+      this.getJealousyLabel(
+        jealousy
+      ) +
+      "\n" +
+
+      "Stability: " +
+      stability +
+      " — " +
+      this.getStabilityLabel(
+        stability
+      )
+    );
+  },
+
+  /* ---------------------------------------------------------
+     FIND EXISTING STATUS CARD
+     --------------------------------------------------------- */
+
+  findCard: function () {
+    for (
+      let index = 0;
+      index < (storyCards || []).length;
+      index++
+    ) {
+      const card =
+        storyCards[index];
+
+      const cardKeys =
+        String(card.keys || "")
+          .split(",")
+          .map(
+            value => value.trim()
+          );
+
+      if (
+        cardKeys.includes(
+          this.STATUS_KEY
+        ) ||
+        card.type === this.CARD_TYPE
+      ) {
+        return {
+          card,
+          index
+        };
+      }
+    }
+
+    return null;
+  },
+
+  /* ---------------------------------------------------------
+     CREATE / UPDATE STATUS CARD
+     --------------------------------------------------------- */
+
+  update: function (
+    characterName
+  ) {
+    if (!characterName) {
+      return false;
+    }
+
+    const relationships =
+      REL.init();
+
+    const character =
+      relationships.characters[
+        characterName
+      ];
+
+    if (!character) {
+      return false;
+    }
+
+    const key =
+      this.getCardKey();
+
+    const entry =
+      this.buildEntry(
+        characterName,
+        character
+      );
+
+    const existing =
+      this.findCard();
+
+    if (existing) {
+      updateStoryCard(
+        existing.index,
+        key,
+        entry,
+        this.CARD_TYPE
+      );
+
+      log(
+        "REL STATUS UPDATED — " +
+        characterName
+      );
+
+      return true;
+    }
+
+    const newIndex =
+      addStoryCard(
+        key,
+        entry,
+        this.CARD_TYPE
+      );
+
+    if (
+      newIndex !== false &&
+      storyCards &&
+      storyCards[newIndex]
+    ) {
+      storyCards[newIndex].description =
+        "Persistent relationship status for " +
+        characterName +
+        ". This card is maintained automatically by Complex REL.";
+
+      storyCards[newIndex].title =
+        characterName +
+        " — Relationship Status";
+    }
+
+    log(
+      "REL STATUS CREATED — " +
+      characterName +
+      " | index=" +
+      String(newIndex)
+    );
+
+    return true;
+  }
+
+};
