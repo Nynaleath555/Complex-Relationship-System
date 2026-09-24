@@ -1,0 +1,84 @@
+/* =========================================================
+   COMPLEX REL BETA — OUTPUT
+   Inner Self must remain first.
+   ========================================================= */
+
+InnerSelf("output");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  const input =
+    relationships.lastInput || "";
+
+  const output =
+    String(text || "");
+
+  if (!output) {
+
+    return {
+      text: output
+    };
+  }
+
+  /*
+  Recent history is used only to help identify the configured
+  romantic interest. Stat changes use only the current input/output.
+  */
+
+  const recentHistory =
+    history
+      .slice(-8)
+      .map(action => action.text || "")
+      .join("\n");
+
+  const combined =
+    input +
+    "\n" +
+    output +
+    "\n" +
+    recentHistory;
+
+  const romanticInterest =
+    REL.detectInterest(
+      storyCards,
+      combined
+    );
+
+  if (!romanticInterest) {
+
+    relationships.lastOutput =
+      output;
+
+    return {
+      text: output
+    };
+  }
+
+  /*
+  A manual edit is administrative state management,
+  not a relationship interaction. The Library consumes
+  the one-shot skip flag before normal analysis resumes.
+  */
+
+  REL.updateCharacter(
+    romanticInterest,
+    input,
+    output
+  );
+
+  relationships.lastOutput =
+    output;
+
+  RELStatus.update(
+    romanticInterest
+  );
+
+  return {
+    text: output
+  };
+};
+
+modifier(text);
