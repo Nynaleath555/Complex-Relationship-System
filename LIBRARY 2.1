@@ -1,5 +1,14 @@
 /* =========================================================
-   COMPLEX REL 2.1 — LIBRARY
+   COMPLEX REL BETA — LIBRARY
+
+   Base behavior:
+   - Keep the original relationship stat system.
+   - Keep manual stat editing.
+   - Keep relationship status card updates.
+   - Keep strong romantic reciprocity detection.
+   - Keep Inner Self completely independent.
+   - Stability is deterministic and uses only the current turn.
+   - No Stability markers and no Stability frontMemory injection.
    ========================================================= */
 
 const REL = {
@@ -1191,3 +1200,788 @@ const REL = {
         break;
       }
     }
+
+    if (manualIndex < 0) {
+      return null;
+    }
+
+    const result = {
+      apply: false,
+      values: {}
+    };
+
+    const statNames = [
+      "friendship",
+      "romance",
+      "trust",
+      "affection",
+      "attraction",
+      "comfort",
+      "jealousy",
+      "stability"
+    ];
+
+    for (
+      let index = manualIndex + 1;
+      index < lines.length;
+      index++
+    ) {
+      const line = lines[index];
+
+      if (!line) continue;
+
+      const applyMatch = line.match(
+        /^apply\s*:\s*(.+)$/i
+      );
+
+      if (applyMatch) {
+        const value = applyMatch[1]
+          .trim()
+          .toLowerCase();
+
+        result.apply =
+          value === "yes" ||
+          value === "true" ||
+          value === "on" ||
+          value === "1";
+
+        continue;
+      }
+
+      const statMatch = line.match(
+        /^(friendship|romance|trust|affection|attraction|comfort|jealousy|stability)\s*:\s*(.+)$/i
+      );
+
+      if (!statMatch) continue;
+
+      const stat = statMatch[1].toLowerCase();
+      const rawValue = statMatch[2].trim();
+
+      if (
+        rawValue.toLowerCase() === "unchanged" ||
+        rawValue === ""
+      ) {
+        result.values[stat] = null;
+        continue;
+      }
+
+      const numericValue = Number(rawValue);
+
+      if (isFinite(numericValue)) {
+        result.values[stat] = numericValue;
+      }
+    }
+
+    for (const stat of statNames) {
+      if (
+        !Object.prototype.hasOwnProperty.call(
+          result.values,
+          stat
+        )
+      ) {
+        result.values[stat] = null;
+      }
+    }
+
+    return result;
+  },
+
+  disableManualEdit: function () {
+    const config = this.getConfigCard();
+
+    if (!config || !config.card) {
+      return false;
+    }
+
+    const lines = String(config.card.description || "")
+      .split(/\r?\n/)
+      .map(line => {
+
+        if (/^\s*apply\s*:/i.test(line)) {
+          return "Apply: no";
+        }
+
+        if (
+          /^\s*(friendship|romance|trust|affection|attraction|comfort|jealousy|stability)\s*:/i.test(line)
+        ) {
+          const match = line.match(
+            /^\s*([^:]+):/
+          );
+
+          return (
+            match ? match[1] : line
+          ).trim() + ": unchanged";
+        }
+
+        return line;
+      });
+
+    return this.saveConfigDescription(
+      lines.join("\n")
+    );
+  },
+
+  /* ---------------------------------------------------------
+     UPDATE CHARACTER
+     --------------------------------------------------------- */
+
+  updateCharacter: function (name, input, output) {
+    const relationships = this.init();
+
+    if (relationships.__relSkipNextOutputAnalysis) {
+
+      relationships.__relSkipNextOutputAnalysis = false;
+      relationships.lastOutput = String(output || "");
+
+      return this.getCharacter(name);
+    }
+
+    const canonicalName = this.getCharacterName(name);
+    const character = this.ensureCharacter(canonicalName);
+
+    if (!character) {
+      return null;
+    }
+
+    const signals = this.analyzeInteraction(
+      canonicalName,
+      input,
+      output
+    );
+
+    const stabilitySignals = this.detectStabilitySignals(
+      input,
+      output,
+      canonicalName
+    );
+
+    let friendshipDelta = 0;
+    let romanceDelta = 0;
+    let trustDelta = 0;
+    let affectionDelta = 0;
+    let attractionDelta = 0;
+    let comfortDelta = 0;
+    let jealousyDelta = 0;
+    let stabilityDelta = 0;
+
+    if (signals.spentTime || signals.sharedActivity) {
+      friendshipDelta += 0.9;
+    }
+
+    if (signals.trivialConversation || signals.joking) {
+      friendshipDelta += 0.45;
+    }
+
+    if (
+      signals.argument ||
+      signals.neglect ||
+      signals.betrayal
+    ) {
+      friendshipDelta -= 1.5;
+    }
+
+    if (signals.seriousHurt) {
+      friendshipDelta -= 2.5;
+    }
+
+    if (signals.caredFor) {
+      trustDelta += 1.25;
+    }
+
+    if (signals.intimateSharing) {
+      trustDelta += 1.5;
+    }
+
+    if (signals.transparent) {
+      trustDelta += 1.5;
+    }
+
+    if (signals.support) {
+      trustDelta += 0.9;
+    }
+
+    if (signals.betrayal) {
+      trustDelta -= 3.5;
+    }
+
+    if (signals.neglect) {
+      trustDelta -= 1.25;
+    }
+
+    if (signals.seriousHurt) {
+      trustDelta -= 2;
+    }
+
+    if (signals.argument) {
+      trustDelta -= 0.75;
+    }
+
+    if (signals.caredFor) {
+      affectionDelta += 1;
+    }
+
+    if (signals.support) {
+      affectionDelta += 1;
+    }
+
+    if (
+      signals.spentTime ||
+      signals.sharedActivity
+    ) {
+      affectionDelta += 0.35;
+    }
+
+    if (signals.romanticPhysical) {
+      affectionDelta += 0.55;
+    }
+
+    if (signals.intimateSharing) {
+      affectionDelta += 0.7;
+    }
+
+    if (signals.neglect) {
+      affectionDelta -= 1;
+    }
+
+    if (signals.betrayal) {
+      affectionDelta -= 2;
+    }
+
+    if (signals.flirting) {
+      attractionDelta += 1.2;
+    }
+
+    if (signals.romanticPhysical) {
+      attractionDelta += 1;
+    }
+
+    if (
+      signals.flirting &&
+      signals.romanticReciprocity
+    ) {
+      attractionDelta += 0.9;
+    }
+
+    if (signals.romanticRefusal) {
+      attractionDelta -= 0.5;
+    }
+
+    if (signals.romanticReciprocity) {
+
+      romanceDelta += 1.4;
+
+      if (
+        character.friendship >= 30 &&
+        character.trust >= 50 &&
+        character.comfort >= 35
+      ) {
+        romanceDelta += 0.6;
+      }
+
+      if (
+        character.attraction >= 25 ||
+        character.affection >= 20
+      ) {
+        romanceDelta += 0.45;
+      }
+    }
+
+    if (signals.romanticRefusal) {
+      romanceDelta -= 1;
+    }
+
+    if (
+      signals.betrayal &&
+      character.romance > 0
+    ) {
+      romanceDelta -= 2;
+    }
+
+    if (
+      signals.seriousHurt &&
+      character.romance > 0
+    ) {
+      romanceDelta -= 1;
+    }
+
+    if (signals.rivalInteraction) {
+
+      jealousyDelta += (
+        character.affection >= 40 ||
+        character.romance >= 20
+      ) ? 2 : 0.5;
+
+      if (character.trust < 40) {
+        jealousyDelta += 1.5;
+      }
+    }
+
+    if (signals.secrecyAboutOthers) {
+
+      if (character.romance >= 20) {
+        jealousyDelta += 1.5;
+      } else if (character.trust < 50) {
+        jealousyDelta += 1;
+      }
+    }
+
+    if (
+      signals.caredFor ||
+      signals.support
+    ) {
+      comfortDelta += 0.9;
+    }
+
+    if (signals.intimateSharing) {
+      comfortDelta += 0.8;
+    }
+
+    if (
+      signals.romanticPhysical &&
+      character.comfort >= 30
+    ) {
+      comfortDelta += 0.7;
+    }
+
+    if (signals.neglect) {
+      comfortDelta -= 1;
+    }
+
+    if (signals.betrayal) {
+      comfortDelta -= 2;
+    }
+
+    if (signals.argument) {
+      comfortDelta -= 0.8;
+    }
+
+    if (signals.romanticRefusal) {
+      comfortDelta -= 0.5;
+    }
+
+    /*
+     Stability uses strict current-turn detection only.
+     */
+
+    if (stabilitySignals.argument) {
+      stabilityDelta -= 4;
+    }
+
+    if (stabilitySignals.seriousHurt) {
+      stabilityDelta -= 5;
+    }
+
+    if (stabilitySignals.failure) {
+      stabilityDelta -= 4;
+    }
+
+    if (stabilitySignals.isolation) {
+      stabilityDelta -= 2;
+    }
+
+    if (stabilitySignals.selfDestructive) {
+      stabilityDelta -= 6;
+    }
+
+    if (stabilitySignals.positiveRecovery) {
+      stabilityDelta += 4;
+    }
+
+    if (stabilitySignals.musicMilestone) {
+      stabilityDelta += 2;
+    }
+
+    if (stabilitySignals.support) {
+      stabilityDelta += 0.6;
+    }
+
+    if (
+      character.trust < 40 &&
+      character.comfort < 30 &&
+      character.jealousy >= 60
+    ) {
+      stabilityDelta -= 1.5;
+    }
+
+    if (
+      !signals.rivalInteraction &&
+      !signals.secrecyAboutOthers
+    ) {
+      jealousyDelta -= 0.15;
+    }
+
+    if (
+      !stabilitySignals.argument &&
+      !stabilitySignals.seriousHurt &&
+      !stabilitySignals.failure &&
+      !stabilitySignals.isolation &&
+      !stabilitySignals.selfDestructive &&
+      character.stability < 80
+    ) {
+      stabilityDelta += 0.1;
+    }
+
+    character.friendship = this.clamp(
+      this.round1(
+        character.friendship + friendshipDelta
+      ),
+      -100,
+      100
+    );
+
+    character.romance = this.clamp(
+      this.round1(
+        character.romance + romanceDelta
+      ),
+      -100,
+      100
+    );
+
+    character.trust = this.clamp(
+      this.round1(
+        character.trust + trustDelta
+      ),
+      0,
+      100
+    );
+
+    character.affection = this.clamp(
+      this.round1(
+        character.affection + affectionDelta
+      ),
+      0,
+      100
+    );
+
+    character.attraction = this.clamp(
+      this.round1(
+        character.attraction + attractionDelta
+      ),
+      0,
+      100
+    );
+
+    character.comfort = this.clamp(
+      this.round1(
+        character.comfort + comfortDelta
+      ),
+      0,
+      100
+    );
+
+    character.jealousy = this.clamp(
+      this.round1(
+        character.jealousy + jealousyDelta
+      ),
+      0,
+      100
+    );
+
+    character.stability = this.clamp(
+      this.round1(
+        character.stability + stabilityDelta
+      ),
+      0,
+      100
+    );
+
+    const activeEvents = Object.keys(signals)
+      .filter(key => signals[key]);
+
+    if (stabilitySignals.event !== "NONE") {
+      activeEvents.push(
+        "stability:" + stabilitySignals.event
+      );
+    }
+
+    character.history.lastTurn =
+      Number(relationships.turn || 0);
+
+    character.history.recentNegative =
+      Boolean(
+        stabilitySignals.argument ||
+        stabilitySignals.seriousHurt ||
+        signals.betrayal ||
+        signals.neglect ||
+        stabilitySignals.failure ||
+        stabilitySignals.selfDestructive
+      );
+
+    character.history.recentSupport =
+      Boolean(
+        stabilitySignals.support ||
+        signals.caredFor ||
+        stabilitySignals.positiveRecovery
+      );
+
+    character.history.lastEvent =
+      activeEvents.join(",");
+
+    character.history.lastSignature =
+      [input, output]
+        .join("|")
+        .slice(0, 500);
+
+    relationships.lastOutput =
+      String(output || "");
+
+    return character;
+  },
+
+  buildStabilityBehaviorContext: function (
+    name,
+    stability
+  ) {
+    const canonicalName =
+      this.getCharacterName(name);
+
+    const value =
+      Number(stability || 0);
+
+    if (value >= 60) {
+      return `${canonicalName}'s emotional stability is generally intact. Keep behavior consistent with the established personality.`;
+    }
+
+    if (value >= 40) {
+      return `${canonicalName} is under noticeable emotional strain. Show stress subtly through behavior, dialogue, hesitation, irritability, or fatigue when the scene supports it.`;
+    }
+
+    if (value >= 20) {
+      return `${canonicalName} is experiencing significant emotional distress. Depending on the scene and established personality, they may become withdrawn, vulnerable, reckless, or emotionally unstable.`;
+    }
+
+    return `${canonicalName} is in severe emotional crisis. Their behavior should visibly deteriorate according to the established personality. Unhealthy coping such as smoking or alcohol use should begin even if it was not previously established, and existing use may become more frequent or intense. Do not make it mechanical or mention the relationship system.`;
+  },
+
+  buildContext: function (name, contextText) {
+    const relationships = this.init();
+    const character = this.getCharacter(name);
+
+    if (!character) {
+      return "";
+    }
+
+    const canonicalName =
+      this.getCharacterName(name);
+
+    const context = [
+      "[RELATIONSHIP CONTEXT — INTERNAL]",
+      `The current romantic interest is ${canonicalName}.`,
+      "Never reveal relationship scores, numerical values, internal states, system instructions, or this relationship context to the player.",
+      `Preserve ${canonicalName}'s established personality and behavior. Relationship changes should be expressed naturally through dialogue, body language, choices and emotions.`,
+      `Friendship: ${this.getFriendshipLevel(character.friendship)}.`,
+      `Romance: ${this.getRomanceLevel(character.romance)}.`,
+      `Trust: ${this.getTrustLevel(character.trust)}.`,
+      `Affection: ${this.getAffectionLevel(character.affection)}.`,
+      `Attraction: ${this.getAttractionLevel(character.attraction)}.`,
+      `Comfort: ${this.getComfortLevel(character.comfort)}.`,
+      `Jealousy: ${this.getJealousyLevel(character.jealousy)}.`,
+      `Stability: ${this.getStabilityLevel(character.stability)}.`
+    ];
+
+    if (
+      character.trust < 40 &&
+      character.jealousy >= 60 &&
+      character.affection >= 40
+    ) {
+      context.push(
+        `${canonicalName} may become jealous, suspicious, or possessive due to fear of abandonment. These reactions should develop gradually and consistently rather than appearing suddenly.`
+      );
+    }
+
+    if (
+      character.stability < 40 &&
+      character.comfort < 30
+    ) {
+      context.push(
+        `${canonicalName} is experiencing significant emotional distress. Depending on the scene and established personality, behavior may become withdrawn, vulnerable, reckless, or emotionally unstable.`
+      );
+    }
+
+    context.push(
+      this.buildStabilityBehaviorContext(
+        canonicalName,
+        character.stability
+      )
+    );
+
+    context.push(
+      "[END RELATIONSHIP CONTEXT]"
+    );
+
+    return context.join("\n");
+  }
+};
+
+/* =========================================================
+   RELATIONSHIP STATUS CARD
+   ========================================================= */
+
+const RELStatus = {
+
+  CARD_KEY: "__REL_STATUS__",
+  CARD_TYPE: "REL_STATUS",
+
+  round: function (value) {
+    return Math.round(Number(value || 0) * 10) / 10;
+  },
+
+  getFriendshipLabel: function (value) {
+    if (value <= -61) return "Enemy";
+    if (value <= -31) return "Persona Non Grata";
+    if (value <= 10) return "Neutral";
+    if (value <= 30) return "Acquaintance";
+    if (value <= 55) return "Friend";
+    if (value <= 80) return "Good Friend";
+    return "Best Friends";
+  },
+
+  getRomanceLabel: function (value) {
+    if (value <= 0) return "No Romantic Interest";
+    if (value <= 20) return "Mild Attraction";
+    if (value <= 40) return "Romantic Interest";
+    if (value <= 65) return "Falling in Love";
+    if (value <= 85) return "Sweethearts";
+    return "Soulmates";
+  },
+
+  getTrustLabel: function (value) {
+    if (value >= 80) return "Secure";
+    if (value >= 60) return "Trusting";
+    if (value >= 40) return "Wary";
+    if (value >= 20) return "Jealous";
+    return "Possessive";
+  },
+
+  getAffectionLabel: function (value) {
+    if (value < 20) return "Indifferent";
+    if (value < 40) return "Fond";
+    if (value < 60) return "Attached";
+    if (value < 80) return "Deeply Attached";
+    return "Devoted";
+  },
+
+  getAttractionLabel: function (value) {
+    if (value < 10) return "None";
+    if (value < 30) return "Curious";
+    if (value < 55) return "Attracted";
+    if (value < 80) return "Strongly Attracted";
+    return "Intense Attraction";
+  },
+
+  getComfortLabel: function (value) {
+    if (value < 20) return "Distant";
+    if (value < 40) return "Cautious";
+    if (value < 60) return "Comfortable";
+    if (value < 80) return "Close";
+    return "Intimate";
+  },
+
+  getJealousyLabel: function (value) {
+    if (value < 15) return "Calm";
+    if (value < 35) return "Alert";
+    if (value < 60) return "Jealous";
+    if (value < 80) return "Highly Jealous";
+    return "Obsessive";
+  },
+
+  getStabilityLabel: function (value) {
+    if (value >= 80) return "Stable";
+    if (value >= 60) return "Strained";
+    if (value >= 40) return "Unstable";
+    if (value >= 20) return "Distressed";
+    return "Crisis";
+  },
+
+  buildEntry: function (name) {
+    const character = REL.getCharacter(name);
+
+    if (!character) {
+      return "";
+    }
+
+    const canonicalName =
+      REL.getCharacterName(name);
+
+    return [
+      `[RELATIONSHIP STATUS — ${canonicalName}]`,
+      `Friendship: ${this.round(character.friendship)} — ${this.getFriendshipLabel(character.friendship)}`,
+      `Romance: ${this.round(character.romance)} — ${this.getRomanceLabel(character.romance)}`,
+      `Trust: ${this.round(character.trust)} — ${this.getTrustLabel(character.trust)}`,
+      `Affection: ${this.round(character.affection)} — ${this.getAffectionLabel(character.affection)}`,
+      `Attraction: ${this.round(character.attraction)} — ${this.getAttractionLabel(character.attraction)}`,
+      `Comfort: ${this.round(character.comfort)} — ${this.getComfortLabel(character.comfort)}`,
+      `Jealousy: ${this.round(character.jealousy)} — ${this.getJealousyLabel(character.jealousy)}`,
+      `Stability: ${this.round(character.stability)} — ${this.getStabilityLabel(character.stability)}`
+    ].join("\n");
+  },
+
+  findCard: function () {
+    if (!Array.isArray(storyCards)) {
+      return -1;
+    }
+
+    return storyCards.findIndex(card => {
+      if (!card || typeof card !== "object") {
+        return false;
+      }
+
+      return (
+        String(card.keys || "").toLowerCase() ===
+          this.CARD_KEY.toLowerCase() &&
+        String(card.type || "").toLowerCase() ===
+          this.CARD_TYPE.toLowerCase()
+      );
+    });
+  },
+
+  update: function (name) {
+    const canonicalName =
+      REL.getCharacterName(name);
+
+    if (!canonicalName) {
+      return false;
+    }
+
+    const entry =
+      this.buildEntry(canonicalName);
+
+    if (!entry) {
+      return false;
+    }
+
+    const index =
+      this.findCard();
+
+    if (index >= 0) {
+      const card = storyCards[index];
+
+      if (typeof updateStoryCard === "function") {
+        updateStoryCard(
+          index,
+          this.CARD_KEY,
+          entry,
+          this.CARD_TYPE
+        );
+      } else {
+        card.keys = this.CARD_KEY;
+        card.entry = entry;
+        card.type = this.CARD_TYPE;
+      }
+
+      return true;
+    }
+
+    if (typeof addStoryCard === "function") {
+      addStoryCard(
+        this.CARD_KEY,
+        entry,
+        this.CARD_TYPE
+      );
+
+      return true;
+    }
+
+    return false;
+  }
+};
