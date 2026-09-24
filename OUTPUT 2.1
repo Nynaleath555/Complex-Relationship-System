@@ -1,5 +1,5 @@
 /* =========================================================
-   COMPLEX REL V2 — OUTPUT
+   COMPLEX REL 2.1 — OUTPUT
    Inner Self must remain first.
    ========================================================= */
 
@@ -17,23 +17,21 @@ const modifier = (text) => {
     String(text || "");
 
   if (!output) {
+
     return {
-      text
+      text: output
     };
   }
 
   /*
-    recentHistory is used ONLY to detect the
-    romantic interest.
-    It is NOT used to calculate relationship
-    changes from previous actions.
+  Recent history is used only to help identify the configured
+  romantic interest. Stat changes use only the current input/output.
   */
+
   const recentHistory =
     history
       .slice(-8)
-      .map(
-        action => action.text || ""
-      )
+      .map(action => action.text || "")
       .join("\n");
 
   const combined =
@@ -50,16 +48,21 @@ const modifier = (text) => {
     );
 
   if (!romanticInterest) {
+
+    relationships.lastOutput =
+      output;
+
     return {
-      text
+      text: output
     };
   }
 
   /*
-    Relationship changes are calculated ONLY
-    from the current player input and the current
-    AI output.
+  A manual edit is administrative state management,
+  not a relationship interaction. The Library consumes
+  the one-shot skip flag before normal analysis resumes.
   */
+
   REL.updateCharacter(
     romanticInterest,
     input,
@@ -74,9 +77,8 @@ const modifier = (text) => {
   );
 
   return {
-    text
+    text: output
   };
-
 };
 
 modifier(text);
