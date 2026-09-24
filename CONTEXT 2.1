@@ -1,5 +1,5 @@
 /* =========================================================
-   COMPLEX REL V2 — CONTEXT
+   COMPLEX REL 2.1 — CONTEXT
    Inner Self must remain first.
    ========================================================= */
 
@@ -12,12 +12,29 @@ const modifier = (text) => {
 
   REL.ensureConfigCard();
 
+  /*
+  Allow Continue/Guide-style flows to apply a pending
+  manual edit before the next interaction is processed.
+  */
+
+  const manualEdit =
+    REL.applyManualEdit();
+
+  if (manualEdit.applied) {
+    RELStatus.update(
+      manualEdit.name
+    );
+  }
+
+  /*
+  Recent history is used only to help identify the configured
+  romantic interest when needed. It is never used for stat changes.
+  */
+
   const recentHistory =
     history
       .slice(-8)
-      .map(
-        action => action.text || ""
-      )
+      .map(action => action.text || "")
       .join("\n");
 
   const combinedText =
@@ -32,6 +49,7 @@ const modifier = (text) => {
     );
 
   if (!romanticInterest) {
+
     return {
       text,
       stop
@@ -58,7 +76,6 @@ const modifier = (text) => {
     text,
     stop
   };
-
 };
 
 modifier(text);
