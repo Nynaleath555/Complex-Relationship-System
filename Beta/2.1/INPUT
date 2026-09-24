@@ -1,0 +1,48 @@
+/* =========================================================
+   COMPLEX REL BETA — INPUT
+   Inner Self must remain first.
+   ========================================================= */
+
+InnerSelf("input");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  REL.ensureConfigCard();
+
+  /*
+  Apply pending manual stat changes before
+  the next interaction is processed.
+  */
+
+  const manualEdit =
+    REL.applyManualEdit();
+
+  relationships.lastInput =
+    String(text || "");
+
+  relationships.turn += 1;
+
+  /*
+  Refresh the status card immediately when
+  a manual edit has been applied.
+  */
+
+  if (manualEdit.applied) {
+
+    relationships.skipNextOutputAnalysis =
+      false;
+
+    RELStatus.update(
+      manualEdit.name
+    );
+  }
+
+  return {
+    text
+  };
+};
+
+modifier(text);
