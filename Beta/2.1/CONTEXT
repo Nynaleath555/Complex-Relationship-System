@@ -1,0 +1,81 @@
+/* =========================================================
+   COMPLEX REL BETA — CONTEXT
+   Inner Self must remain first.
+   ========================================================= */
+
+InnerSelf("context");
+
+const modifier = (text) => {
+
+  const relationships =
+    REL.init();
+
+  REL.ensureConfigCard();
+
+  /*
+  Allow Continue/Guide-style flows to apply a pending
+  manual edit before the next interaction is processed.
+  */
+
+  const manualEdit =
+    REL.applyManualEdit();
+
+  if (manualEdit.applied) {
+    RELStatus.update(
+      manualEdit.name
+    );
+  }
+
+  /*
+  Recent history is used only to help identify the configured
+  romantic interest when needed. It is never used for stat changes.
+  */
+
+  const recentHistory =
+    history
+      .slice(-8)
+      .map(action => action.text || "")
+      .join("\n");
+
+  const combinedText =
+    String(text || "") +
+    "\n" +
+    recentHistory;
+
+  const romanticInterest =
+    REL.detectInterest(
+      storyCards,
+      combinedText
+    );
+
+  if (!romanticInterest) {
+
+    return {
+      text,
+      stop
+    };
+  }
+
+  REL.ensureCharacter(
+    romanticInterest
+  );
+
+  const relationshipContext =
+    REL.buildContext(
+      romanticInterest,
+      combinedText
+    );
+
+  if (relationshipContext) {
+    text +=
+      "\n\n" +
+      relationshipContext;
+  }
+
+  return {
+    text,
+    stop
+  };
+};
+
+modifier(text);
