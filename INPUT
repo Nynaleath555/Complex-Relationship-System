@@ -1,5 +1,5 @@
 /* =========================================================
-   COMPLEX REL V2 — INPUT
+   COMPLEX REL 2.1 — INPUT
    Inner Self must remain first.
    ========================================================= */
 
@@ -13,9 +13,10 @@ const modifier = (text) => {
   REL.ensureConfigCard();
 
   /*
-    Apply pending manual stat changes before
-    the next interaction is processed.
+  Apply pending manual stat changes before
+  the next interaction is processed.
   */
+
   const manualEdit =
     REL.applyManualEdit();
 
@@ -25,10 +26,15 @@ const modifier = (text) => {
   relationships.turn += 1;
 
   /*
-    Refresh the status card immediately when
-    a manual edit has been applied.
+  Refresh the status card immediately when
+  a manual edit has been applied.
   */
+
   if (manualEdit.applied) {
+
+    relationships.skipNextOutputAnalysis =
+      false;
+
     RELStatus.update(
       manualEdit.name
     );
@@ -37,7 +43,6 @@ const modifier = (text) => {
   return {
     text
   };
-
 };
 
 modifier(text);
