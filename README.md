@@ -1,4 +1,4 @@
-# 👥💕 🤝💗🔥🫂💚 ⚖️ Nynaleath's Complex Relationship System V2
+# 👥💕 🤝💗🔥🫂💚 ⚖️ Nynaleath's Complex Relationship System V2.1
 
 A dynamic relationship system for AI Dungeon designed to make NPC relationships develop more gradually, naturally, and realistically.
 
