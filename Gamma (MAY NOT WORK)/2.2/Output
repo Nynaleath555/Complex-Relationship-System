@@ -1,0 +1,34 @@
+InnerSelf("context");
+
+const modifier = (text) => {
+  const relationships = REL.init();
+  REL.ensureConfigCard();
+
+  const manualEdit = REL.applyManualEdit();
+  if (manualEdit.applied) RELStatus.update(manualEdit.name);
+
+  const recentHistory =
+    history.slice(-8).map(action => action.text || "").join("\n");
+
+  const combinedText =
+    String(text || "") + "\n" + recentHistory;
+
+  const romanticInterest =
+    REL.detectInterest(storyCards, combinedText);
+
+  if (!romanticInterest) return { text, stop };
+
+  REL.ensureCharacter(romanticInterest);
+  REL.primeBrainTracking(romanticInterest);
+
+  const relationshipContext =
+    REL.buildContext(romanticInterest, combinedText);
+
+  if (relationshipContext) {
+    text += "\n\n" + relationshipContext;
+  }
+
+  return { text, stop };
+};
+
+modifier(text);
