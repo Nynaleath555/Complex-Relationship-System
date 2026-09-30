@@ -8,7 +8,7 @@
    - Keep strong romantic reciprocity detection.
    - Keep Inner Self completely independent.
    - Stability is deterministic and uses only the current turn.
-   - No Stability markers and no Stability frontMemory injection.
+   - No Stability markers and no Stability frontMemory injection.DE
    ========================================================= */
 
 const REL = {
@@ -611,7 +611,7 @@ const REL = {
       ...fresh.map(item => item.label)
     );
 
-    const signals = {
+        const signals = {
       spentTime: false,
       sharedActivity: false,
       trivialConversation: false,
@@ -626,8 +626,19 @@ const REL = {
       seriousHurt: false,
       flirting: false,
       romanticPhysical: false,
+
       romanticReciprocity: false,
+      romanticInitiation: false,
+      romanticAcceptance: false,
+      romanticAffection: false,
+      romanticCloseness: false,
+      romanticVerbalReciprocity: false,
+      romanticVulnerability: false,
+      romanticCommitment: false,
+      intimateReciprocity: false,
+
       romanticRefusal: false,
+
       rivalInteraction: false,
       secrecyAboutOthers: false
     };
@@ -899,135 +910,696 @@ const REL = {
      ROMANTIC RECIPROCITY
      --------------------------------------------------------- */
 
-  detectStrongRomanticReciprocity: function (name, input, output) {
-    const source = String(output || "")
-      .replace(/[“”]/g, '"')
-      .replace(/[’]/g, "'")
-      .replace(/\s+/g, " ")
-      .trim();
+    /* ---------------------------------------------------------
+     ROMANTIC SIGNALS
 
-    const playerInput = String(input || "")
-      .replace(/[“”]/g, '"')
-      .replace(/[’]/g, "'")
-      .replace(/\s+/g, " ")
-      .trim();
+     Positive romance is intentionally broad:
+     - Active reciprocity
+     - NPC romantic initiation
+     - Romantic acceptance
+     - Affectionate behavior
+     - Romantic closeness
+     - Verbal emotional reciprocity
+     - Romantic vulnerability
+     - Romantic commitment
+     - Intimate reciprocity
 
-    if (!source || !playerInput) return false;
+     Refusal is intentionally narrow:
+     only explicit, unmistakable rejection counts.
+
+     Ambiguity such as hesitation, internal conflict,
+     "I shouldn't", "I almost...", breathing pauses,
+     temporary distance, etc. does NOT count as refusal.
+     --------------------------------------------------------- */
+
+  detectRomanticSignals: function (name, input, output, brainMode) {
+    const source = this.normalizeInteractionText(output);
+    const playerInput = this.normalizeInteractionText(input);
+    const isBrainMode = Boolean(brainMode);
+
+    const result = {
+      romanticReciprocity: false,
+      romanticInitiation: false,
+      romanticAcceptance: false,
+      romanticAffection: false,
+      romanticCloseness: false,
+      romanticVerbalReciprocity: false,
+      romanticVulnerability: false,
+      romanticCommitment: false,
+      intimateReciprocity: false,
+      romanticRefusal: false
+    };
+
+    if (!source) return result;
 
     const aliases = this.getAliases(name);
-    if (!aliases.length) return false;
 
-    const escapedAliases = aliases.map(alias => this.escapeRegex(alias));
-    const aliasRegex = new RegExp(
-      "\\b(?:" + escapedAliases.join("|") + ")\\b",
-      "i"
+    const escapedAliases = aliases.map(alias =>
+      this.escapeRegex(alias)
     );
 
-    const subjectPattern =
-      "(?:" + escapedAliases.join("|") + "|they|he|she)";
+    const aliasRegex = escapedAliases.length
+      ? new RegExp(
+          "\\b(?:" + escapedAliases.join("|") + ")\\b",
+          "i"
+        )
+      : null;
 
-    const sentences = source
-      .split(/(?:[.!?]+\s+|\r?\n+)/)
-      .map(sentence => sentence.trim())
-      .filter(Boolean);
-
-    if (!sentences.some(sentence => aliasRegex.test(sentence))) {
-      return false;
+    /*
+     * In normal output there must be some reference to the NPC
+     * somewhere in the response.
+     *
+     * We intentionally do NOT require the name to appear in the
+     * same sentence as the action. AI Dungeon commonly writes:
+     *
+     * "His mouth crashes against yours..."
+     *
+     * and only mentions "Mateo" several sentences later.
+     */
+    if (
+      !isBrainMode &&
+      (!aliasRegex || !aliasRegex.test(source))
+    ) {
+      return result;
     }
 
-    const refusalBeforePattern =
-      /\b(?:doesn't|does not|didn't|did not|won't|will not|never|refuses?|refused|rejects?|rejected|pulls? away|pulled away|turns? away|turned away|backs? away|backed away|avoids?|avoided)\b/i;
+    const sentences = this.splitInteractionSentences(source);
 
-    const intentBeforePattern =
-      /\b(?:will|would|might|could|should|want(?:s)? to|wanted to|hope(?:s)? to|hoped to|plan(?:s)? to|planned to|think(?:s)? about|thought about|tries? to|tried to|attempts? to|attempted to|considers?|considered|wishes? to|wished to|almost|nearly)\b/i;
-
-    const playerRejectionPattern =
-      /\b(?:you|the player)\b[^.!?]{0,80}\b(?:pulls? away|pulled away|turns? away|turned away|rejects?|rejected|refuses?|refused|backs? away|backed away|says? no|said no)\b/i;
-
-    const reciprocalPatterns = {
+    /*
+     * What did the player actually initiate?
+     *
+     * "intimate" is deliberately separated from romantic categories.
+     * Purely sexual participation should affect attraction/affection
+     * without automatically becoming romantic reciprocity.
+     */
+    const inputPatterns = {
       kiss:
-        /(?:kisses?|kissed)\s+you(?:\s+(?:back|again))?|returns?\s+(?:your\s+|the\s+)?kiss|deepens?\s+(?:the\s+)?kiss|leans?\s+in(?:\s+closer)?\s+(?:and\s+)?kisses?\s+you|presses?\s+(?:their|his|her)\s+lips\s+(?:against|to)\s+yours|meets?\s+your\s+(?:lips|mouth)|brushes?\s+(?:their|his|her)\s+lips\s+against\s+yours|touches?\s+(?:their|his|her)\s+lips\s+to\s+yours|seeks?\s+your\s+lips|captures?\s+your\s+lips|pulls?\s+you\s+(?:into|closer\s+for)\s+(?:a\s+)?kiss|initiates?\s+(?:a\s+)?kiss/i,
+        /\b(?:kiss|kisses|kissed|kissing|make\s+out|making\s+out)\b/i,
 
       flirt:
-        /flirts?\s+back|flirted\s+back|reciprocates?\s+(?:your\s+)?flirting|reciprocated\s+(?:your\s+)?flirting|returns?\s+(?:the\s+)?flirtation|teases?\s+you\s+(?:playfully|flirtatiously)|flirtatiously\s+teases?\s+you/i,
+        /\b(?:flirt|flirts|flirted|flirting|flirty|seduce|seductive|seductively)\b/i,
 
       date:
-        /agrees?\s+to\s+(?:go\s+on\s+)?(?:a\s+)?date\s+with\s+you|accepts?\s+(?:your\s+)?(?:date\s+)?invitation|asks?\s+you\s+out|invites?\s+you\s+(?:out|on\s+(?:a\s+)?date)|suggests?\s+(?:a\s+)?date(?:\s+with\s+you)?|proposes?\s+(?:a\s+)?date|plans?\s+(?:a\s+)?date\s+with\s+you|wants?\s+to\s+go\s+on\s+(?:a\s+)?date\s+with\s+you/i,
+        /\b(?:date|dating|go\s+out\s+with\s+me|ask(?:ed)?\s+(?:him|her|them|you)?\s*out|take\s+(?:him|her|them|you)\s+out|romantic\s+outing|dinner\s+date)\b/i,
 
       touch:
-        /hugs?\s+you\s+back|embraces?\s+you|returns?\s+(?:your\s+)?hug|cuddles?\s+(?:closer|with\s+you)|pulls?\s+you\s+(?:closer|into\s+(?:their|his|her)\s+(?:arms|embrace))|holds?\s+(?:your\s+hand|hands?\s+with\s+you)|takes?\s+your\s+hand|squeezes?\s+your\s+hand|laces?\s+(?:their|his|her)\s+fingers?\s+with\s+yours|leans?\s+into\s+your\s+touch|returns?\s+your\s+touch/i,
+        /\b(?:touch|touches|touched|touching|stroke|strokes|stroked|stroking|hold(?:s|ing)?\s+(?:hands?|his|her|their|your)|hug(?:s|ged|ging)?|embrace(?:s|d|ing)?|cuddle(?:s|d|ing)?|caress(?:es|ed|ing)?)\b/i,
 
       gift:
-        /returns?\s+the\s+(?:romantic\s+)?gesture|gives?\s+you\s+(?:a\s+)?(?:romantic\s+)?gift(?:\s+in\s+return)?|gives?\s+you\s+flowers?|gives?\s+you\s+roses?|gives?\s+you\s+jewelry|hands?\s+you\s+(?:something|a\s+gift)\s+in\s+return|returns?\s+the\s+gift/i,
+        /\b(?:romantic\s+gift|romantic\s+present|love\s+letter|roses?|bouquet|jewelry|necklace|bracelet|valentine(?:'s)?\s+gift)\b/i,
 
       words:
-        /says?\s+(?:they\s+)?love\s+you\s+too|tells?\s+you\s+(?:they\s+)?love\s+you|admits?\s+(?:their\s+)?feelings\s+for\s+you|confesses?\s+(?:their\s+)?feelings|says?\s+they\s+have\s+feelings\s+for\s+you|says?\s+they\s+want\s+to\s+be\s+with\s+you|returns?\s+your\s+confession|reciprocates?\s+your\s+feelings/i,
+        /\b(?:i\s+love\s+you|love\s+you|my\s+feelings\s+for\s+you|confess(?:\s+my)?\s+feelings|romantic\s+feelings|want\s+to\s+be\s+with\s+you|tell\s+[^.!?]{0,40}\s+you\s+(?:that\s+)?i\s+(?:love|adore))\b/i,
 
       time:
-        /agrees?\s+to\s+spend\s+(?:more\s+)?time\s+with\s+you|asks?\s+you\s+to\s+stay|suggests?\s+spending\s+(?:more\s+)?time\s+(?:together|with\s+you)|wants?\s+you\s+to\s+stay\s+(?:with\s+them|with\s+her|with\s+him)|suggests?\s+being\s+alone\s+with\s+you|asks?\s+to\s+spend\s+time\s+alone\s+with\s+you|suggests?\s+(?:just\s+the\s+two\s+of\s+you|a\s+private\s+evening\s+together)/i
+        /\b(?:romantic\s+date|romantic\s+outing|romantic\s+evening|spend\s+time\s+alone|spend\s+the\s+evening\s+alone|just\s+the\s+two\s+of\s+us|one[-\s]on[-\s]one|private\s+evening|alone\s+together)\b/i,
+
+      intimate:
+        /\b(?:sensual|sensually|intimate|intimacy|erotic|erotically|seductive|seductively|press\s+(?:against|closer)|move\s+(?:against|closer)|grind|straddle|undress|undresses|undressed|naked|bare\s+skin)\b/i
     };
 
-    const inputPatterns = {
-      kiss: /\b(?:kiss|kisses|kissed|kissing|make out|making out)\b/i,
-      flirt: /\b(?:flirt|flirts|flirted|flirting|flirty|seduce|seductive)\b/i,
-      date: /\b(?:date|dating|go out with me|ask(?:ed)?\s+[^.!?]{0,40}\s+out|take you out|romantic outing|dinner date)\b/i,
-      touch: /\b(?:romantic(?:ally)?|tender(?:ly)?|intimate(?:ly)?|affectionate(?:ly)?|loving(?:ly)?|hold hands?|holding hands?|cuddle|cuddling|embrace|embracing|caress|caressing)\b/i,
-      gift: /\b(?:romantic gift|romantic present|love letter|roses?|bouquet|jewelry|necklace|bracelet|valentine(?:'s)? gift)\b/i,
-      words: /\b(?:i love you|love you|my feelings for you|confess(?: my)? feelings|romantic feelings|want to be with you|tell\s+[^.!?]{0,40}\s+you\s+(?:that\s+)?i\s+(?:love|adore)|say\s+[^.!?]{0,40}\s+(?:i\s+)?love)\b/i,
-      time: /\b(?:romantic date|romantic outing|romantic evening|spend time alone|spend the evening alone|just the two of us|one[- ]on[- ]one|private evening|alone together)\b/i
-    };
-
-    const candidateCategories = Object.keys(reciprocalPatterns)
-      .filter(category => inputPatterns[category].test(playerInput));
-
-    if (!candidateCategories.length) return false;
-
-    for (let sentenceIndex = 0; sentenceIndex < sentences.length; sentenceIndex++) {
-      const sentence = sentences[sentenceIndex];
-      const previousSentence = sentenceIndex > 0 ? sentences[sentenceIndex - 1] : "";
-
-      if (
-        !aliasRegex.test(sentence) &&
-        !aliasRegex.test(previousSentence)
-      ) {
-        continue;
-      }
-
-      const subjectRegex = new RegExp(
-        "\\b" + subjectPattern + "\\b",
-        "gi"
+    const candidateCategories = Object.keys(inputPatterns)
+      .filter(category =>
+        inputPatterns[category].test(playerInput)
       );
 
-      let subjectMatch;
+    const romanticInitiative =
+      isBrainMode ||
+      candidateCategories.some(category =>
+        [
+          "kiss",
+          "flirt",
+          "date",
+          "touch",
+          "gift",
+          "words",
+          "time"
+        ].includes(category)
+      );
 
-      while ((subjectMatch = subjectRegex.exec(sentence)) !== null) {
-        const afterSubject = sentence.slice(
-          subjectMatch.index + subjectMatch[0].length
-        );
+    const romanticOrIntimateInitiative =
+      isBrainMode ||
+      romanticInitiative ||
+      candidateCategories.includes("intimate");
 
-        const actionWindow = afterSubject.slice(0, 180);
+    const hasIntimateInitiative =
+      isBrainMode ||
+      candidateCategories.includes("intimate");
 
-        for (const category of candidateCategories) {
-          const actionMatch = actionWindow.match(reciprocalPatterns[category]);
+    /*
+     * These are actual realized actions.
+     *
+     * "almost", "nearly", "considers", "thinks about", etc.
+     * are excluded because they describe intention rather than
+     * something that actually happened.
+     */
+    const speculativeActionPattern =
+      /\b(?:almost|nearly|considers?|considered|thinks?\s+about|thought\s+about|tries?\s+to|tried\s+to|attempts?\s+to|attempted\s+to|plans?\s+to|planned\s+to|intends?\s+to|intended\s+to|wants?\s+to|wanted\s+to|hopes?\s+to|hoped\s+to)\b/i;
 
-          if (!actionMatch) continue;
+    /*
+     * Only clearly retrospective language invalidates a current
+     * romantic action. We deliberately do NOT use the old bare
+     * "before" / "earlier" style broad filter here because AI
+     * often writes:
+     *
+     * "Before kissing you, he..."
+     *
+     * which is still a current action.
+     */
+    const retrospectivePattern =
+      /\b(?:yesterday|last\s+(?:night|day|week|month|year)|earlier|previously|in\s+the\s+past|used\s+to|once\s+before|remember(?:s|ed)?|recall(?:s|ed)?|recalled)\b/i;
 
-          const beforeAction = actionWindow.slice(
-            0,
-            actionMatch.index
-          );
+    const realizedMatch = (sentence, pattern) => {
+      if (!sentence) return null;
+      if (retrospectivePattern.test(sentence)) return null;
 
-          if (refusalBeforePattern.test(beforeAction)) continue;
-          if (intentBeforePattern.test(beforeAction)) continue;
-          if (playerRejectionPattern.test(afterSubject)) continue;
-          if (playerRejectionPattern.test(sentences[sentenceIndex + 1] || "")) continue;
+      const match = sentence.match(pattern);
+      if (!match) return null;
 
-          return true;
+      const beforeAction = sentence.slice(
+        Math.max(0, match.index - 90),
+        match.index
+      );
+
+      if (speculativeActionPattern.test(beforeAction)) {
+        return null;
+      }
+
+      return match;
+    };
+
+    const anySentenceMatches = (
+      patterns,
+      requireRomanticContext
+    ) => {
+      if (
+        requireRomanticContext &&
+        !romanticInitiative &&
+        !isBrainMode
+      ) {
+        return false;
+      }
+
+      return sentences.some(sentence =>
+        (patterns || []).some(pattern =>
+          Boolean(realizedMatch(sentence, pattern))
+        )
+      );
+    };
+
+    /*
+     * ---------------------------------------------------------
+     * STRONG RECIPROCITY
+     * ---------------------------------------------------------
+     *
+     * These are responses to an action already initiated by the
+     * player. We intentionally include narrative-style wording,
+     * not only literal "kisses you back".
+     */
+    const reciprocalPatterns = {
+      kiss: [
+        /\b(?:kisses?|kissed)\s+(?:you|me)(?:\s+(?:back|again))?\b/i,
+        /\breturns?\s+(?:your\s+|the\s+)?kiss\b/i,
+        /\bdeepens?\s+(?:the\s+)?kiss\b/i,
+        /\bresponds?\s+(?:by\s+|with\s+)?kissing\s+(?:you|me)\b/i,
+        /\bpresses?\s+(?:their|his|her)\s+lips\s+(?:against|to)\s+yours\b/i,
+        /\bmeets?\s+your\s+(?:lips|mouth)\b/i,
+        /\bbrushes?\s+(?:their|his|her)\s+lips\s+against\s+yours\b/i,
+        /\btouches?\s+(?:their|his|her)\s+lips\s+to\s+yours\b/i,
+        /\bseeks?\s+your\s+lips\b/i,
+        /\bcaptures?\s+your\s+lips\b/i,
+        /\bpulls?\s+you\s+(?:into|closer\s+for)\s+(?:the\s+)?kiss\b/i,
+        /\bkeeps?\s+kissing\s+(?:you|me)\b/i,
+        /\bcontinues?\s+kissing\s+(?:you|me)\b/i,
+        /\bdoesn['’]?t\s+let\s+the\s+kiss\s+end\b/i,
+        /\bcannot\s+resist\s+kissing\s+(?:you|me)\b/i,
+        /\bcan['’]?t\s+resist\s+kissing\s+(?:you|me)\b/i,
+        /\bcouldn['’]?t\s+resist\s+kissing\s+(?:you|me)\b/i,
+        /\bgives?\s+in\s+and\s+kisses?\s+(?:you|me)\b/i,
+        /\b(?:his|her|their)\s+mouth\s+(?:crashes|presses|meets|moves)\s+(?:against|onto|to)\s+yours\b/i,
+        /\b(?:his|her|their)\s+lips?\s+(?:crash|press|move|meet)\s+(?:against|with)\s+yours\b/i
+      ],
+
+      flirt: [
+        /\bflirts?\s+back\b/i,
+        /\breciprocates?\s+(?:your\s+)?flirting\b/i,
+        /\breturns?\s+(?:the\s+)?flirtation\b/i,
+        /\bteases?\s+you\s+(?:playfully|flirtatiously)\b/i,
+        /\bflirtatiously\s+teases?\s+you\b/i,
+        /\bmatches?\s+your\s+flirt(?:ing)?\b/i
+      ],
+
+      date: [
+        /\bagrees?\s+to\s+(?:go\s+on\s+)?(?:a\s+)?date\s+with\s+you\b/i,
+        /\baccepts?\s+(?:your\s+)?(?:date\s+)?invitation\b/i,
+        /\basks?\s+you\s+out\b/i,
+        /\binvites?\s+you\s+(?:out|on\s+(?:a\s+)?date)\b/i,
+        /\bsuggests?\s+(?:a\s+)?date\s+with\s+you\b/i,
+        /\bproposes?\s+(?:a\s+)?date\b/i,
+        /\bplans?\s+(?:a\s+)?date\s+with\s+you\b/i
+      ],
+
+      touch: [
+        /\bhugs?\s+you\s+back\b/i,
+        /\breturns?\s+(?:your\s+)?hug\b/i,
+        /\bembraces?\s+you\b/i,
+        /\bcuddles?\s+(?:closer|with\s+you)\b/i,
+        /\bpulls?\s+you\s+(?:closer|into\s+(?:their|his|her)\s+(?:arms|embrace))\b/i,
+        /\btakes?\s+your\s+hand\b/i,
+        /\bholds?\s+your\s+hand\b/i,
+        /\bsqueezes?\s+your\s+hand\b/i,
+        /\blaces?\s+(?:their|his|her)\s+fingers\s+with\s+yours\b/i,
+        /\bleans?\s+into\s+your\s+touch\b/i,
+        /\breturns?\s+your\s+touch\b/i,
+        /\bresponds?\s+to\s+your\s+touch\b/i,
+        /\bmirrors?\s+your\s+touch\b/i,
+        /\bmoves?\s+closer\s+to\s+you\b/i
+      ],
+
+      gift: [
+        /\breturns?\s+the\s+(?:romantic\s+)?gesture\b/i,
+        /\bgives?\s+you\s+(?:a\s+)?romantic\s+gift\b/i,
+        /\bgives?\s+you\s+flowers?\b/i,
+        /\bgives?\s+you\s+roses?\b/i,
+        /\bgives?\s+you\s+jewelry\b/i,
+        /\breturns?\s+the\s+gift\b/i
+      ],
+
+      words: [
+        /\bsays?\s+(?:they\s+)?love\s+you\s+too\b/i,
+        /\btells?\s+you\s+(?:they\s+)?love\s+you\b/i,
+        /\badmits?\s+(?:their\s+)?feelings\s+for\s+you\b/i,
+        /\bconfesses?\s+(?:their\s+)?feelings\b/i,
+        /\bsays?\s+they\s+have\s+feelings\s+for\s+you\b/i,
+        /\bsays?\s+they\s+want\s+to\s+be\s+with\s+you\b/i,
+        /\breturns?\s+your\s+confession\b/i,
+        /\breciprocates?\s+your\s+feelings\b/i,
+        /\bsays?\s+they\s+feel\s+the\s+same\s+way\b/i
+      ],
+
+      time: [
+        /\bagrees?\s+to\s+spend\s+(?:more\s+)?time\s+with\s+you\b/i,
+        /\basks?\s+you\s+to\s+stay\b/i,
+        /\bsuggests?\s+spending\s+(?:more\s+)?time\s+(?:together|with\s+you)\b/i,
+        /\bwants?\s+you\s+to\s+stay\s+with\s+(?:them|him|her)\b/i,
+        /\bsuggests?\s+being\s+alone\s+with\s+you\b/i,
+        /\basks?\s+to\s+spend\s+time\s+alone\s+with\s+you\b/i,
+        /\bsuggests?\s+(?:just\s+the\s+two\s+of\s+you|a\s+private\s+evening\s+together)\b/i
+      ]
+    };
+
+    if (romanticInitiative) {
+      for (const category of [
+        "kiss",
+        "flirt",
+        "date",
+        "touch",
+        "gift",
+        "words",
+        "time"
+      ]) {
+        if (
+          !isBrainMode &&
+          !candidateCategories.includes(category)
+        ) {
+          continue;
+        }
+
+        if (
+          anySentenceMatches(
+            reciprocalPatterns[category],
+            true
+          )
+        ) {
+          result.romanticReciprocity = true;
+          break;
         }
       }
     }
 
-    return false;
+    /*
+     * ---------------------------------------------------------
+     * NPC ROMANTIC INITIATION
+     * ---------------------------------------------------------
+     *
+     * Deliberately only explicit initiative.
+     * This prevents a normal "leans in" response from being counted
+     * both as reciprocity and initiation.
+     */
+    const initiationPatterns = [
+      /\bkisses?\s+(?:you|me)\s+first\b/i,
+      /\binitiates?\s+(?:a\s+)?kiss\b/i,
+      /\bmakes?\s+the\s+first\s+move\b/i,
+      /\basks?\s+you\s+out\b/i,
+      /\binvites?\s+you\s+on\s+(?:a\s+)?date\b/i,
+      /\breaches?\s+for\s+your\s+hand\b/i,
+      /\btakes?\s+your\s+hand\s+first\b/i,
+      /\bsuddenly\s+kisses?\s+(?:you|me)\b/i
+    ];
+
+    result.romanticInitiation =
+      anySentenceMatches(
+        initiationPatterns,
+        false
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * ROMANTIC ACCEPTANCE
+     * ---------------------------------------------------------
+     *
+     * Mainly date/private-evening/gift acceptance.
+     * Love confessions are handled by verbal reciprocity.
+     */
+    const acceptancePatterns = [
+      /\bagrees?\s+to\s+(?:go\s+on\s+)?(?:a\s+)?date\s+with\s+you\b/i,
+      /\baccepts?\s+(?:your\s+)?(?:date\s+)?invitation\b/i,
+      /\bsays?\s+(?:yes|i['’]?d\s+love\s+to)\b/i,
+      /\bthat\s+sounds?\s+(?:nice|good|wonderful)\b/i,
+      /\bagrees?\s+to\s+spend\s+(?:the\s+)?(?:evening|night|time)\s+alone\s+with\s+you\b/i,
+      /\baccepts?\s+your\s+(?:romantic\s+)?proposal\b/i,
+      /\baccepts?\s+your\s+romantic\s+gift\b/i
+    ];
+
+    if (
+      isBrainMode ||
+      candidateCategories.some(category =>
+        ["date", "time", "gift"].includes(category)
+      )
+    ) {
+      result.romanticAcceptance =
+        anySentenceMatches(
+          acceptancePatterns,
+          false
+        );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * ROMANTIC AFFECTION
+     * ---------------------------------------------------------
+     */
+    const affectionPatterns = [
+      /\bcaresses?\s+your\s+(?:cheek|face|hair|neck|hand)\b/i,
+      /\bstrokes?\s+your\s+(?:cheek|hair|face|arm|back)\b/i,
+      /\bbrushes?\s+(?:your\s+)?hair\s+(?:back|away)\s+from\s+your\s+face\b/i,
+      /\bkisses?\s+your\s+(?:forehead|temple|cheek)\b/i,
+      /\bcups?\s+your\s+(?:cheek|face)\b/i,
+      /\brests?\s+(?:their|his|her)\s+forehead\s+against\s+yours\b/i,
+      /\bnuzzles?\s+(?:against|into)\s+you\b/i,
+      /\bholds?\s+you\s+(?:tenderly|gently|lovingly)\b/i,
+      /\bembraces?\s+you\s+(?:gently|tenderly|warmly)\b/i,
+      /\bgives?\s+you\s+a\s+gentle\s+kiss\b/i,
+      /\b(?:their|his|her)\s+lips?\s+(?:find|finds|found)\s+(?:your|the)\s+(?:neck|jaw|cheek|temple)\b/i
+    ];
+
+    result.romanticAffection =
+      anySentenceMatches(
+        affectionPatterns,
+        true
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * ROMANTIC CLOSENESS
+     * ---------------------------------------------------------
+     */
+    const closenessPatterns = [
+      /\bstays?\s+close\s+to\s+you\b/i,
+      /\bremains?\s+close\s+to\s+you\b/i,
+      /\bkeeps?\s+you\s+close\b/i,
+      /\bkeeps?\s+(?:his|her|their)\s+(?:body|chest|face)\s+close\s+to\s+yours\b/i,
+      /\bleans?\s+(?:against|into)\s+you\b/i,
+      /\bsettles?\s+closer\s+(?:to\s+you|beside\s+you)\b/i,
+      /\bdraws?\s+closer\s+to\s+you\b/i,
+      /\bmoves?\s+closer\s+to\s+you\b/i,
+      /\bremains?\s+pressed\s+against\s+you\b/i,
+      /\bstays?\s+pressed\s+against\s+you\b/i,
+      /\bdoesn['’]?t\s+create\s+any\s+distance\s+between\s+you\b/i,
+      /\bkeeps?\s+(?:their|his|her)\s+arms\s+around\s+you\b/i
+    ];
+
+    result.romanticCloseness =
+      anySentenceMatches(
+        closenessPatterns,
+        true
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * VERBAL ROMANTIC RECIPROCITY
+     * ---------------------------------------------------------
+     */
+    const verbalPatterns = [
+      /\b["']?i\s+love\s+you\s+too["']?\b/i,
+      /\bi\s+feel\s+the\s+same\s+way\b/i,
+      /\bi\s+have\s+feelings\s+for\s+you\b/i,
+      /\bi\s+want\s+to\s+be\s+with\s+you\b/i,
+      /\byou\s+matter\s+to\s+me\b/i,
+      /\bi['’]?m\s+glad\s+it['’]?s\s+you\b/i,
+      /\bi\s+don['’]?t\s+want\s+to\s+lose\s+you\b/i,
+      /\bi\s+missed\s+you\s+too\b/i,
+      /\bi['’]?ve\s+fallen\s+for\s+you\b/i,
+      /\bi\s+care\s+about\s+you\b/i
+    ];
+
+    result.romanticVerbalReciprocity =
+      (
+        isBrainMode ||
+        candidateCategories.includes("words")
+      ) &&
+      anySentenceMatches(
+        verbalPatterns,
+        false
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * ROMANTIC VULNERABILITY
+     * ---------------------------------------------------------
+     */
+    const vulnerabilityPatterns = [
+      /\bopens?\s+up\s+to\s+you\s+about\s+(?:their\s+)?feelings\b/i,
+      /\bconfides?\s+in\s+you\b/i,
+      /\badmits?\s+(?:that\s+)?you\s+matter\s+to\s+(?:him|her|them|me)\b/i,
+      /\badmits?\s+(?:being|that\s+they\s+are)\s+afraid\s+of\s+losing\s+you\b/i,
+      /\btells?\s+you\s+something\s+(?:they['’]?ve|they\s+have)\s+never\s+told\s+anyone\b/i,
+      /\blets?\s+you\s+see\s+(?:a\s+)?vulnerable\s+side\b/i,
+      /\breveals?\s+(?:their\s+)?feelings\s+to\s+you\b/i,
+      /\bopens?\s+their\s+heart\s+to\s+you\b/i
+    ];
+
+    result.romanticVulnerability =
+      anySentenceMatches(
+        vulnerabilityPatterns,
+        false
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * ROMANTIC COMMITMENT
+     * ---------------------------------------------------------
+     */
+    const commitmentPatterns = [
+      /\bwants?\s+to\s+build\s+a\s+future\s+with\s+you\b/i,
+      /\btalks?\s+about\s+(?:a\s+)?future\s+(?:together|with\s+you)\b/i,
+      /\bimagines?\s+(?:a\s+)?future\s+(?:together|with\s+you)\b/i,
+      /\bchooses?\s+you\b/i,
+      /\bcalls?\s+you\s+(?:his|her|their)\s+(?:partner|girlfriend|boyfriend)\b/i,
+      /\bwants?\s+you\s+by\s+(?:his|her|their)\s+side\b/i,
+      /\bdoesn['’]?t\s+want\s+to\s+lose\s+you\b/i,
+      /\basks?\s+you\s+to\s+stay\s+(?:with\s+him|with\s+her|with\s+them|by\s+his\s+side|by\s+her\s+side)\b/i
+    ];
+
+    result.romanticCommitment =
+      anySentenceMatches(
+        commitmentPatterns,
+        false
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * INTIMATE RECIPROCITY
+     * ---------------------------------------------------------
+     *
+     * This is intentionally separate from Romance.
+     * It represents sensual/intimate participation.
+     */
+    const intimatePatterns = [
+      /\bresponds?\s+eagerly\s+to\s+your\s+touch\b/i,
+      /\bresponds?\s+to\s+your\s+(?:sensual|intimate|erotic)\s+touch\b/i,
+      /\breturns?\s+your\s+(?:sensual|intimate)\s+touch\b/i,
+      /\bmirrors?\s+your\s+movements?\b/i,
+      /\bmoves?\s+with\s+you\b/i,
+      /\bpresses?\s+(?:closer|against)\s+you\b/i,
+      /\bpulls?\s+you\s+(?:closer|against\s+(?:himself|herself|themselves))\b/i,
+      /\bpulls?\s+(?:you|your\s+body)\s+(?:flush|close)\s+against\s+(?:him|her|them)\b/i,
+      /\btightens?\s+(?:his|her|their)\s+(?:grip|hands?)\s+(?:on|around)\s+(?:you|your)\b/i,
+      /\b(?:his|her|their)\s+hands?\s+tighten\s+(?:on|around)\s+your\s+(?:hips?|waist|back)\b/i,
+      /\bpresses?\s+(?:his|her|their)\s+(?:body|chest|hips?)\s+against\s+yours?\b/i,
+      /\bguides?\s+your\s+hand\b/i,
+      /\bwelcomes?\s+your\s+touch\b/i,
+      /\bleans?\s+into\s+your\s+touch\b/i,
+      /\barches?\s+into\s+your\s+touch\b/i,
+      /\blets?\s+your\s+touch\s+linger\b/i,
+      /\bbreath(?:es|ing)\s+(?:quickens?|grows?\s+heavier)\b/i,
+      /\bkisses?\s+your\s+neck\b/i
+    ];
+
+    result.intimateReciprocity =
+      hasIntimateInitiative &&
+      anySentenceMatches(
+        intimatePatterns,
+        false
+      );
+
+    /*
+     * ---------------------------------------------------------
+     * STRICT ROMANTIC REFUSAL
+     * ---------------------------------------------------------
+     *
+     * No generic:
+     * - pulls away
+     * - breaks kiss
+     * - hesitates
+     * - pauses
+     * - shouldn't
+     * - almost
+     * - conflicted
+     *
+     * A refusal must clearly reject the player's romantic/intimate
+     * initiative.
+     */
+    const refusalPatterns = {
+      kiss: [
+        /\brefuses?\s+(?:your\s+)?kiss\b/i,
+        /\brejects?\s+(?:your\s+)?kiss\b/i,
+        /\bpulls?\s+away\s+from\s+(?:the\s+)?kiss\b/i,
+        /\bbreaks?\s+(?:the\s+)?kiss\s+and\s+steps?\s+back\b/i,
+        /\bturns?\s+(?:their|his|her)\s+face\s+away\s+from\s+your\s+kiss\b/i,
+        /\btells?\s+you\s+not\s+to\s+kiss\s+(?:them|him|her)\b/i,
+        /\basks?\s+you\s+not\s+to\s+kiss\s+(?:them|him|her)\b/i
+      ],
+
+      touch: [
+        /\bpulls?\s+away\s+from\s+your\s+touch\b/i,
+        /\bremoves?\s+your\s+hand\b/i,
+        /\bmoves?\s+your\s+hand\s+away\b/i,
+        /\bpushes?\s+your\s+hand\s+away\b/i,
+        /\btells?\s+you\s+not\s+to\s+touch\s+(?:them|him|her)\b/i,
+        /\basks?\s+you\s+not\s+to\s+touch\s+(?:them|him|her)\b/i,
+        /\brejects?\s+your\s+touch\b/i
+      ],
+
+      flirt: [
+        /\brebuffs?\s+your\s+flirtation\b/i,
+        /\brejects?\s+your\s+flirting\b/i,
+        /\btells?\s+you\s+to\s+stop\s+flirting\b/i,
+        /\bsays?\s+they['’]?re\s+not\s+interested\b/i,
+        /\bsays?\s+they\s+are\s+not\s+interested\b/i
+      ],
+
+      date: [
+        /\bdeclines?\s+(?:your\s+)?(?:date\s+)?invitation\b/i,
+        /\bturns?\s+down\s+(?:your\s+)?(?:date\s+)?invitation\b/i,
+        /\brefuses?\s+to\s+go\s+on\s+a\s+date\s+with\s+you\b/i,
+        /\bsays?\s+no\s+to\s+(?:the\s+)?date\b/i
+      ],
+
+      words: [
+        /\brejects?\s+your\s+confession\b/i,
+        /\bdoesn['’]?t\s+feel\s+the\s+same\s+way\b/i,
+        /\bdoes\s+not\s+feel\s+the\s+same\s+way\b/i,
+        /\bsays?\s+they\s+don['’]?t\s+feel\s+the\s+same\s+way\b/i,
+        /\bsays?\s+they\s+do\s+not\s+feel\s+the\s+same\s+way\b/i,
+        /\bsays?\s+they\s+don['’]?t\s+love\s+you\s+that\s+way\b/i,
+        /\btells?\s+you\s+they\s+don['’]?t\s+have\s+feelings\s+for\s+you\b/i
+      ],
+
+      time: [
+        /\bdeclines?\s+to\s+spend\s+(?:the\s+)?(?:evening|night|time)\s+alone\s+with\s+you\b/i,
+        /\brefuses?\s+to\s+be\s+alone\s+with\s+you\b/i
+      ]
+    };
+
+    if (romanticOrIntimateInitiative) {
+      for (const category of [
+        "kiss",
+        "touch",
+        "flirt",
+        "date",
+        "words",
+        "time"
+      ]) {
+        if (
+          !isBrainMode &&
+          !candidateCategories.includes(category)
+        ) {
+          continue;
+        }
+
+        if (
+          anySentenceMatches(
+            refusalPatterns[category],
+            false
+          )
+        ) {
+          result.romanticRefusal = true;
+          break;
+        }
+      }
+
+      /*
+       * Universal refusals are restricted to phrases that are
+       * unambiguous in a romantic/intimate scene.
+       */
+      if (!result.romanticRefusal) {
+        const universalRefusalPatterns = [
+          /\bpushes?\s+you\s+away\b/i,
+          /\bshoves?\s+you\s+away\b/i,
+          /\bmoves?\s+away\s+and\s+creates?\s+(?:distance|space)\b/i,
+          /\bsteps?\s+back\s+and\s+shakes?\s+(?:their|his|her)\s+head\b/i,
+          /\bsays?\s+they['’]?re\s+not\s+interested\b/i,
+          /\bsays?\s+they\s+are\s+not\s+interested\b/i,
+          /\bsays?\s+they\s+don['’]?t\s+want\s+this\b/i,
+          /\bsays?\s+they\s+do\s+not\s+want\s+this\b/i,
+          /\basks?\s+you\s+to\s+leave\b/i
+        ];
+
+        if (
+          anySentenceMatches(
+            universalRefusalPatterns,
+            false
+          )
+        ) {
+          result.romanticRefusal = true;
+        }
+      }
+    }
+
+    /*
+     * A single turn can theoretically contain both:
+     *
+     * "He kisses you back, then pushes you away."
+     *
+     * Both actions really happened, so both signals are preserved.
+     */
+    return result;
+  },
+
+  /*
+   * Compatibility wrapper.
+   *
+   * Existing code or future code calling the original detector
+   * still receives the same boolean answer.
+   */
+  detectStrongRomanticReciprocity: function (name, input, output) {
+    return this.detectRomanticSignals(
+      name,
+      input,
+      output,
+      false
+    ).romanticReciprocity;
   },
 
   normalizeInteractionText: function (text) {
