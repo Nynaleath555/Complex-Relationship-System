@@ -665,8 +665,8 @@ const REL = {
         return true;
       }
 
-      return /\b(?:you|your|we|us|together|between us|our)\b/i.test(source) &&
-        /\b(?:kiss|kissed|kissing|touch|touched|touching|hug|hugged|hugging|embrace|embraced|cuddle|cuddled|caress|caressed|flirt|flirting|tease|teasing|love|romance|romantic|intimate|affection|attraction|jealous|jealousy|care|cared|support|supported|confide|confided|open(?:ed)?\s+up|feelings?|desire|want(?:ed)?|close|closer)\b/i.test(source);
+            return /\b(?:you|your|we|us|together|between us|our)\b/i.test(source) &&
+        /\b(?:kiss|kissed|kissing|touch|touched|touching|hug|hugged|hugging|embrace|embraced|cuddle|cuddled|caress|caressed|flirt|flirting|tease|teasing|love|romance|romantic|intimate|intimacy|sensual|affection|attraction|jealous|jealousy|care|cared|support|supported|confide|confided|open(?:ed)?\s+up|feelings?|desire|want(?:ed)?|date|dating|invitation|partner|future|choose|chose|chosen|stay|stayed|matter|miss|missed|proposal|accept|accepted|agree|agreed|lose|same)\b/i.test(source);
     });
 
     const allFreshText = relationshipThoughts
