@@ -1,5 +1,5 @@
 /* =========================================================
-   COMPLEX REL GAMMA — LIBRARY
+   COMPLEX REL beta — LIBRARY
 
    Base behavior:
    - Keep the original relationship stat system.
@@ -574,10 +574,16 @@ const REL = {
     return currentMax;
   },
 
-  detectBrainSignals: function (name) {
+    detectBrainSignals: function (name) {
     const character = this.ensureCharacter(name);
+
     if (!character) {
-      return { detected: false, signals: {}, thoughts: [] };
+      return {
+        detected: false,
+        hasFreshRelationshipThought: false,
+        signals: {},
+        thoughts: []
+      };
     }
 
     if (!character.history || typeof character.history !== "object") {
@@ -592,10 +598,14 @@ const REL = {
     const fresh = thoughts.filter(item => item.label > previousLabel);
 
     if (fresh.length === 0) {
-      return { detected: false, signals: {}, thoughts: [] };
+      return {
+        detected: false,
+        hasFreshRelationshipThought: false,
+        signals: {},
+        thoughts: []
+      };
     }
 
-    // Always advance the cursor, even if the new thought is unrelated.
     character.history.brainLastLabel = Math.max(
       previousLabel,
       ...fresh.map(item => item.label)
@@ -623,35 +633,56 @@ const REL = {
     };
 
     const mark = (key, patterns, source) => {
-      if (patterns.some(pattern => pattern.test(source))) {
+      if ((patterns || []).some(pattern => pattern.test(source))) {
         signals[key] = true;
       }
     };
 
-    const romanticAliases = this.getAliases(name);
+    const aliases = this.getAliases(name);
+
     const relationshipThoughts = fresh.filter(item => {
-      const source = `${item.key || ""} ${item.thought || ""}`;
-      return romanticAliases.some(alias => this.containsWord(source, alias));
+      const source =
+        String(item.key || "") +
+        " " +
+        String(item.thought || "");
+
+      if (
+        aliases.some(alias =>
+          this.containsWord(source, alias)
+        )
+      ) {
+        return true;
+      }
+
+      return /\b(?:you|your|we|us|together|between us|our)\b/i.test(source) &&
+        /\b(?:kiss|kissed|kissing|touch|touched|touching|hug|hugged|hugging|embrace|embraced|cuddle|cuddled|caress|caressed|flirt|flirting|tease|teasing|love|romance|romantic|intimate|affection|attraction|jealous|jealousy|care|cared|support|supported|confide|confided|open(?:ed)?\s+up|feelings?|desire|want(?:ed)?|close|closer)\b/i.test(source);
     });
 
     const allFreshText = relationshipThoughts
-      .map(item => `${item.key}: ${item.thought}`)
+      .map(item =>
+        `${item.key || ""}: ${item.thought || ""}`
+      )
       .join("\n");
 
-    for (const item of relationshipThoughts) {
-      const key = String(item.key || "").toLowerCase();
-      const thought = String(item.thought || "");
-      const source = `${key} ${thought}`;
+    /*
+     * A fresh relationship thought is authoritative.
+     * Regex must not be mixed with Brain signals on the same turn.
+     */
 
-      // Positive connection / familiarity.
+    for (const item of relationshipThoughts) {
+      const source =
+        String(item.key || "").toLowerCase() +
+        " " +
+        String(item.thought || "");
+
       mark("spentTime", [
-        /\b(?:spend|spent|spending|hang(?:ed|ing)?\s+out|visit(?:ed|ing)?|joined|stay(?:ed|ing)?)\b[\s\S]{0,100}\b(?:together|with)\b/i,
-        /\b(?:time|evening|afternoon|night|morning)\b[\s\S]{0,60}\b(?:together|with)\b/i
+        /\b(?:spend|spent|spending|hang(?:ed|ing)?\s+out|visit(?:ed|ing)?|joined|stay(?:ed|ing)?)\b[\s\S]{0,100}\b(?:together|with|alone)\b/i,
+        /\b(?:time|evening|afternoon|night|morning)\b[\s\S]{0,70}\b(?:together|with|alone)\b/i
       ], source);
 
       mark("sharedActivity", [
-        /\b(?:did|do|played?|play(?:ing)?|practiced?|practice|watched?|watch(?:ing)?|cooked?|cook(?:ing)?|trained?|train(?:ing)?|worked?|work(?:ing)?|studied?|study(?:ing)?)\b[\s\S]{0,100}\b(?:with|together)\b/i,
-        /\b(?:we|us)\b[\s\S]{0,40}\b(?:played?|watched?|cooked?|practiced?|trained?|worked?|studied?)\b/i
+        /\b(?:played?|play(?:ing)?|practiced?|practice|watched?|watch(?:ing)?|cooked?|cook(?:ing)?|trained?|train(?:ing)?|worked?|work(?:ing)?|studied?|study(?:ing)?)\b[\s\S]{0,100}\b(?:with|together)\b/i,
+        /\b(?:we|us)\b[\s\S]{0,60}\b(?:played?|watched?|cooked?|practiced?|trained?|worked?|studied?)\b/i
       ], source);
 
       mark("trivialConversation", [
@@ -660,21 +691,22 @@ const REL = {
       ], source);
 
       mark("joking", [
-        /\b(?:joke(?:d|s|ing)?|tease(?:d|s|ing)?|banter(?:ed|ing)?|laughed|laugh(?:ing)?|made me laugh|had fun)\b/i
+        /\b(?:joke(?:d|s|ing)?|tease(?:d|s|ing)?|banter(?:ed|ing)?|laugh(?:ed|ing)?|made me laugh|had fun|playful(?:ly)?)\b/i
       ], source);
 
       mark("caredFor", [
-        /\b(?:care(?:d|s|ing)?|cared about|worry(?:ied|ies|ing) about|look(?:ed|s)?\s+after|take(?:s|ing)?\s+care|took\s+care|help(?:ed|s|ing)?|comfort(?:ed|s|ing)?|checked\s+on)\b/i,
-        /\b(?:feel|felt|feeling)\b[\s\S]{0,70}\b(?:safe|cared\s+for|looked\s+after)\b/i
+        /\b(?:care(?:d|s|ing)?|cared about|worry(?:ied|ies|ing) about|look(?:ed|s)?\s+after|take(?:s|ing)?\s+care|took\s+care|help(?:ed|s|ing)?|comfort(?:ed|s|ing)?|checked\s+on|protect(?:ed|s|ing)?)\b/i,
+        /\b(?:feel|felt|feeling)\b[\s\S]{0,70}\b(?:safe|cared\s+for|looked\s+after|protected)\b/i
       ], source);
 
       mark("support", [
-        /\b(?:support(?:ed|s|ing)?|encourag(?:ed|es|ing)|reassur(?:ed|es|ing)|stood\s+by|was\s+there\s+for|be\s+there\s+for)\b/i,
-        /\b(?:help(?:ed|s|ing) me|had my back|backed me up)\b/i
+        /\b(?:support(?:ed|s|ing)?|encourag(?:ed|es|ing)|reassur(?:ed|es|ing)|stood\s+by|was\s+there\s+for|be\s+there\s+for|had\s+my\s+back|backed\s+me\s+up)\b/i
       ], source);
 
       mark("intimateSharing", [
-        /\b(?:opened\s+up|open(?:ed|s)?\s+up|confide(?:d|s|ing)?|shared?\s+(?:a\s+)?(?:secret|private|personal|deep)|told\s+(?:[^.!?]{0,80})\b(?:secret|truth|something\s+personal)|revealed?\s+(?:a\s+)?(?:secret|fear|feeling))\b/i
+        /\b(?:opened\s+up|open(?:ed|s)?\s+up|confide(?:d|s|ing)?|shared?\s+(?:a\s+)?(?:secret|private|personal|deep)|revealed?\s+(?:a\s+)?(?:secret|fear|feeling)|vulnerable|vulnerability)\b/i,
+        /\b(?:private|alone|quiet|close|closer|intimate)\b[\s\S]{0,100}\b(?:whisper(?:ed|s|ing)?|shared?|confided?|opened?\s+up|revealed?|admitted?)\b/i,
+        /\b(?:forehead|temple)\b[\s\S]{0,50}\b(?:against|to|touch(?:es|ed|ing)?|rest(?:s|ed|ing)?)\b/i
       ], source);
 
       mark("transparent", [
@@ -683,55 +715,72 @@ const REL = {
       ], source);
 
       mark("neglect", [
-        /\b(?:ignored?|ignoring|neglected?|neglecting|forgot|forgetting|left\s+me\s+waiting|stood\s+me\s+up|let me down)\b/i,
+        /\b(?:ignored?|ignoring|neglected?|neglecting|forgot|forgetting|left\s+me\s+waiting|stood\s+me\s+up|let\s+me\s+down)\b/i,
         /\b(?:feel|felt|feeling)\b[\s\S]{0,60}\b(?:ignored|neglected|forgotten|abandoned)\b/i
       ], source);
 
       mark("betrayal", [
-        /\b(?:betray(?:ed|s|ing|al)?|backstab(?:bed|s|bing)?|lied\s+to\s+me|lie\s+to\s+me|cheat(?:ed|s|ing)?)\b/i,
-        /\b(?:cannot|can't|couldn't)\s+(?:believe|trust)\b[\s\S]{0,80}\b(?:lied|betrayed)\b/i
+        /\b(?:betray(?:ed|s|ing|al)?|backstab(?:bed|s|bing)?|lied\s+to\s+me|lie\s+to\s+me|cheat(?:ed|s|ing)?)\b/i
       ], source);
 
       mark("argument", [
-        /\b(?:argue(?:d|s|ing)?|argument|fight(?:ing|s)?|fought|confront(?:ed|s|ing)?|shout(?:ed|s|ing)?|yell(?:ed|s|ing)?|scream(?:ed|s|ing)?)\b/i,
-        /\b(?:we|us)\b[\s\S]{0,70}\b(?:argued|fought|had an argument)\b/i
+        /\b(?:argue(?:d|s|ing)?|argument|fight(?:ing|s)?|fought|confront(?:ed|s|ing)?|shout(?:ed|s|ing)?|yell(?:ed|s|ing)?|scream(?:ed|s|ing)?)\b/i
       ], source);
 
       mark("seriousHurt", [
         /\b(?:deeply|seriously|badly)\s+hurt\b/i,
-        /\b(?:humiliated|devastated|heartbroken|crushed|wounded|destroyed)\b/i,
-        /\b(?:that|this)\s+(?:really|deeply)\s+hurt\b/i
+        /\b(?:humiliated|devastated|heartbroken|crushed|wounded|destroyed)\b/i
       ], source);
 
       mark("flirting", [
-        /\b(?:flirt(?:ed|s|ing)?|tease(?:d|s|ing)?\s+playfully|seduc(?:e|ed|es|ing)|wink(?:ed|s|ing)?\s+at)\b/i,
-        /\b(?:attracted|attraction|chemistry|tension)\b[\s\S]{0,80}\b(?:between|with)\b/i,
-        /\b(?:feel|felt|feeling)\b[\s\S]{0,80}\b(?:drawn|attracted)\b[\s\S]{0,40}\b(?:to|toward)\b/i
+        /\b(?:flirt(?:ed|s|ing)?|seduc(?:e|ed|es|ing)|wink(?:ed|s|ing)?\s+at)\b/i,
+        /\b(?:playful(?:ly)?|mischievous(?:ly)?|provocative(?:ly)?|smirk(?:s|ed|ing)?|raises?\s+(?:an?\s+)?eyebrow)\b[\s\S]{0,90}\b(?:gaze|look|eyes?|smile|close|closer|touch|kiss|voice|tease)\b/i,
+        /\b(?:holds?|held|locks?)\s+(?:my\s+|your\s+)?(?:gaze|eyes?|eye\s+contact)\b[\s\S]{0,90}\b(?:close|closer|touch|kiss|tease|smile|leans?)\b/i,
+        /\b(?:voice|tone)\b[\s\S]{0,40}\b(?:lowers?|lowered|drops?|dropped|husk(?:y|ily)|softens?|softened)\b[\s\S]{0,80}\b(?:close|closer|whisper|touch|kiss|tease)\b/i
       ], source);
 
       mark("romanticPhysical", [
-        /\b(?:kiss(?:ed|es|ing)?|cuddle(?:d|s|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|caress(?:ed|es|ing)?|hold\s+hands?|held\s+hands?|intertwine(?:d|s|ing)?\s+(?:our|their|fingers?)|touch(?:ed|es|ing)?\s+(?:my|their|your)\s+(?:cheek|face|hair|hand))\b/i,
-        /\b(?:wanted|want|wished|wish|longed)\s+to\s+(?:kiss|touch|hold|cuddle|hug)\b/i
+        /\b(?:kiss(?:ed|es|ing)?|cuddle(?:d|s|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|caress(?:ed|es|ing)?|hold\s+hands?|held\s+hands?)\b/i,
+        /\b(?:wanted|want|wished|wish|longed)\s+to\s+(?:kiss|touch|hold|cuddle|hug)\b/i,
+        /\b(?:leans?|leaned|leaning)\s+in(?:\s+closer)?\b/i,
+        /\b(?:moves?|moved|moving|draws?|drew|drawing)\s+(?:closer|close)\b/i,
+        /\b(?:closes?|closed|closing)\s+(?:the\s+)?distance\b/i,
+        /\b(?:pulls?|pulled|draws?|drew)\s+(?:you|them|him|her)\s+(?:closer|close|against)\b/i,
+        /\b(?:holds?|held|keeps?|kept)\s+(?:you|them|him|her)\s+close\b/i,
+        /\b(?:their|his|her)\s+lips?\s+(?:meet|met|brush|brushed|press|pressed|touch|touched)\b/i,
+        /\b(?:hands?|fingers?)\b[\s\S]{0,70}\b(?:waist|hip|back|neck|nape|cheek|face|hair|thigh)\b/i
       ], source);
 
+      /*
+       * Refusal is deliberately strict.
+       * Hesitation, uncertainty, thought, pauses, "maybe", etc. are NOT refusals.
+       */
       mark("romanticRefusal", [
-        /\b(?:pulled|pulls|pull)\s+away\b[\s\S]{0,60}\b(?:kiss|touch|embrace|hug|cuddle)\b/i,
-        /\b(?:refused?|reject(?:ed|s|ing)?|didn't want|doesn't want|don't want)\b[\s\S]{0,80}\b(?:kiss|date|romance|touch|be\s+with|relationship|advance)\b/i,
-        /\b(?:not interested|backed away|turned away)\b/i
+        /\b(?:refuses?|refused|rejects?|rejected|says?\s+no|said\s+no|tells?\s+you\s+no|told\s+you\s+no|not\s+interested)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|date|romance|advance|relationship)\b/i,
+        /\b(?:pulls?|pulled|turns?|turned|backs?|backed|steps?|stepped)\s+away\b[\s\S]{0,90}\b(?:kiss|touch|hug|embrace|cuddle|flirt|romance|advance|close|closer)\b/i,
+        /\b(?:breaks?|broke|ends?|ended|stops?|stopped)\s+(?:the\s+)?(?:kiss|embrace|hug|cuddle|touch|flirting)\b/i,
+        /\b(?:pushes?|pushed)\s+(?:you|them|him|her)\s+away\b[\s\S]{0,70}\b(?:kiss|touch|embrace|hug|cuddle|romance|advance)\b/i
       ], source);
 
+      /*
+       * Positive reciprocity:
+       * direct return, mutuality, continuation and active participation.
+       */
       mark("romanticReciprocity", [
-        /\b(?:kiss(?:ed|ing)?|hug(?:ged|ging)?|embrace(?:d|ing)?|cuddle(?:d|ing)?|touch(?:ed|ing)?)\b[\s\S]{0,60}\b(?:back|again|too|in return)\b/i,
-        /\b(?:flirt(?:ed|s|ing)?|reciprocated|returned)\b[\s\S]{0,70}\b(?:with|back|the flirting|the kiss|the gesture)\b/i,
-        /\b(?:i|I)\s+(?:love|want|need)\b[\s\S]{0,70}\b(?:too|as well)\b/i,
-        /\b(?:same way|feel the same|feelings are mutual|want to be with)\b/i,
-        /\b(?:returned|accepted|welcomed)\b[\s\S]{0,60}\b(?:the\s+kiss|the\s+gesture|the\s+invitation|the\s+touch|the\s+hug)\b/i
+        /\b(?:kiss(?:es|ed|ing)?|hug(?:s|ged|ging)?|embrace(?:s|d|ing)?|cuddle(?:s|d|ing)?|touch(?:es|ed|ing)?)\b[\s\S]{0,120}\b(?:back|again|too|in\s+return|each\s+other|one\s+another|mutual(?:ly)?|together)\b/i,
+        /\b(?:returns?|returned|accepts?|accepted|welcomes?|welcomed|mirrors?|mirrored|matches?|matched)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|gesture|affection)\b/i,
+        /\b(?:mutual(?:ly)?|each\s+other|one\s+another|together|both|in\s+sync|mirroring)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|caress|close)\b/i,
+        /\b(?:doesn't|does\s+not|didn't|did\s+not)\s+(?:pull\s+away|push\s+away|resist|stop|break|move\s+away)\b[\s\S]{0,80}\b(?:kiss|touch|hug|embrace|cuddle|close|together)\b/i,
+        /\b(?:continues?|continued|keeps?|kept|deepens?|deepened|lingers?|lingered|stays?|stayed|remains?|remained)\b[\s\S]{0,90}\b(?:the\s+kiss|kissing|touching|embracing|hugging|cuddling|close|closer|together|against)\b/i,
+        /\b(?:leans?|leaned)\s+in(?:\s+closer)?\b[\s\S]{0,80}\b(?:kiss(?:es|ed|ing)?|touch(?:es|ed|ing)?|embrace(?:s|d|ing)?|hug(?:s|ged|ging)?|cuddle(?:s|d|ing)?)\b/i,
+        /\b(?:presses?|pressed|brushes?|brushed|touches?|touched)\s+(?:their|his|her)\s+lips?\s+(?:against|to)\s+yours\b/i,
+        /\b(?:meets?|met)\s+your\s+(?:lips|mouth)\b/i,
+        /\b(?:pulls?|pulled|draws?|drew)\s+you\s+(?:closer|close|against)\b/i
       ], source);
 
       mark("rivalInteraction", [
         /\b(?:jealous|jealousy|insecure|threatened)\b[\s\S]{0,120}\b(?:someone\s+else|another|other|rival|ex|stranger)\b/i,
-        /\b(?:flirt(?:ed|s|ing)?|kiss(?:ed|es|ing)?|date(?:d|s|ing)?|romance(?:d|s|ing)?|dance(?:d|s|ing)?)\b[\s\S]{0,100}\b(?:someone\s+else|another|other|rival|ex|stranger)\b/i,
-        /\b(?:someone\s+else|another|other|rival|ex|stranger)\b[\s\S]{0,100}\b(?:flirt|kiss|date|romance|dance)\b/i
+        /\b(?:flirt(?:ed|s|ing)?|kiss(?:ed|es|ing)?|date(?:d|s|ing)?|romance(?:d|s|ing)?|dance(?:d|s|ing)?)\b[\s\S]{0,100}\b(?:someone\s+else|another|other|rival|ex|stranger)\b/i
       ], source);
 
       mark("secrecyAboutOthers", [
@@ -740,22 +789,37 @@ const REL = {
       ], source);
     }
 
-    // Suppress a few broad false positives when a thought merely mentions
-    // a relationship concept as part of speculation or planning.
-    if (/\b(?:maybe|might|could|should|would|if)\b/i.test(allFreshText)) {
-      // Do not erase strong explicit first-person emotional states.
-      if (!/\b(?:i|I'm|I am|i'm|I felt|I feel|I wanted|I want)\b/i.test(allFreshText)) {
-        for (const key of Object.keys(signals)) {
-          if (key !== "romanticReciprocity") signals[key] = false;
+    /*
+     * Do not let speculative wording erase a concrete realized action.
+     */
+    const hasRealizedAction =
+      relationshipThoughts.some(item =>
+        /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|leans?\s+in|moved?\s+closer|pulled?\s+closer|returned?|accepted?|deepened?|continued?|lingered?)\b/i.test(
+          String(item.thought || "")
+        )
+      );
+
+    if (
+      /\b(?:maybe|might|could|should|would|perhaps|if)\b/i.test(allFreshText) &&
+      !hasRealizedAction
+    ) {
+      for (const key of Object.keys(signals)) {
+        if (key !== "romanticReciprocity") {
+          signals[key] = false;
         }
       }
     }
 
     const detected = Object.values(signals).some(Boolean);
-    return { detected, signals, thoughts: relationshipThoughts };
+
+    return {
+      detected,
+      hasFreshRelationshipThought: relationshipThoughts.length > 0,
+      signals,
+      thoughts: relationshipThoughts
+    };
   },
 
-  
   detectInterest: function () {
     const relationships = this.init();
     const configuredName = this.getConfiguredInterest();
@@ -1118,12 +1182,22 @@ const REL = {
         /\b(?:seriously\s+hurt|deeply\s+hurt|deeply\s+wound|wounded|devastated|heartbroken|crushed|traumatized|humiliated|humiliated\s+them|humiliate\s+them)\b/i
       ]),
 
-      flirting: this.hasAny(combined, [
-        /\b(?:flirt|flirts|flirted|flirting|flirty|seductive|seductively|wink|winks|winked|winked\s+at)\b/i
+            flirting: this.hasAny(combined, [
+        /\b(?:flirt|flirts|flirted|flirting|flirty|seductive|seductively|wink|winks|winked|winked\s+at)\b/i,
+        /\b(?:playful(?:ly)?|mischievous(?:ly)?|provocative(?:ly)?|smirk(?:s|ed|ing)?|raises?\s+(?:an?\s+)?eyebrow)\b[\s\S]{0,90}\b(?:gaze|look|eyes?|smile|close|closer|touch|kiss|voice|tease)\b/i,
+        /\b(?:holds?|held|locks?)\s+(?:your\s+)?(?:gaze|eyes?|eye\s+contact)\b[\s\S]{0,90}\b(?:close|closer|touch|kiss|tease|smile|leans?)\b/i,
+        /\b(?:voice|tone)\b[\s\S]{0,40}\b(?:lowers?|lowered|drops?|dropped|husk(?:y|ily)|softens?|softened)\b[\s\S]{0,80}\b(?:close|closer|whisper|touch|kiss|tease)\b/i
       ]),
 
-      romanticPhysical: this.hasAny(combined, [
-        /\b(?:kiss|kissed|kissing|cuddle|cuddled|cuddling|hug|hugged|hugging|embrace|embraced|caress|caressed|caressing|hold\s+hands?|held\s+hands?|intertwine(?:d|s)?\s+(?:their|your)\s+fingers?|touch(?:ed|ing)?\s+(?:their|your)\s+(?:cheek|face|hair))\b/i
+            romanticPhysical: this.hasAny(combined, [
+        /\b(?:kiss|kissed|kissing|cuddle|cuddled|cuddling|hug|hugged|hugging|embrace|embraced|caress|caressed|caressing|hold\s+hands?|held\s+hands?|intertwine(?:d|s)?\s+(?:their|your)\s+fingers?|touch(?:ed|ing)?\s+(?:their|your)\s+(?:cheek|face|hair|hand))\b/i,
+        /\b(?:leans?|leaned|leaning)\s+in(?:\s+closer)?\b/i,
+        /\b(?:moves?|moved|moving|draws?|drew|drawing)\s+(?:closer|close)\b/i,
+        /\b(?:closes?|closed|closing)\s+(?:the\s+)?distance\b/i,
+        /\b(?:pulls?|pulled|draws?|drew)\s+(?:you|them|him|her)\s+(?:closer|close|against)\b/i,
+        /\b(?:holds?|held|keeps?|kept)\s+(?:you|them|him|her)\s+close\b/i,
+        /\b(?:their|his|her)\s+lips?\s+(?:meet|met|brush|brushed|press|pressed|touch|touched)\b/i,
+        /\b(?:hands?|fingers?)\b[\s\S]{0,70}\b(?:waist|hip|back|neck|nape|cheek|face|hair|thigh)\b/i
       ]),
 
       romanticReciprocity: this.detectStrongRomanticReciprocity(
@@ -1132,8 +1206,11 @@ const REL = {
         output
       ),
 
-      romanticRefusal: this.hasAny(String(output || ""), [
-        /\b(?:rejects?|rejected|refuses?|refused|turns?\s+away|turned\s+away|pulls?\s+away|pulled\s+away|backs?\s+away|backed\s+away|doesn't\s+want|does\s+not\s+want|not\s+interested|stop(?:s|ped)?\s+(?:the\s+)?kiss)\b/i
+            romanticRefusal: this.hasAny(String(output || ""), [
+        /\b(?:refuses?|refused|rejects?|rejected|says?\s+no|said\s+no|tells?\s+you\s+no|told\s+you\s+no|not\s+interested)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|date|romance|advance|relationship)\b/i,
+        /\b(?:pulls?|pulled|turns?|turned|backs?|backed|steps?|stepped)\s+away\b[\s\S]{0,90}\b(?:kiss|touch|hug|embrace|cuddle|flirt|romance|advance|close|closer)\b/i,
+        /\b(?:breaks?|broke|ends?|ended|stops?|stopped)\s+(?:the\s+)?(?:kiss|embrace|hug|cuddle|touch|flirting)\b/i,
+        /\b(?:pushes?|pushed)\s+(?:you|them|him|her)\s+away\b[\s\S]{0,70}\b(?:kiss|touch|embrace|hug|cuddle|romance|advance)\b/i
       ]),
 
       rivalInteraction: this.hasAny(combined, [
@@ -1492,8 +1569,9 @@ const REL = {
 
     if (!character) return null;
 
-    const brainResult = this.detectBrainSignals(canonicalName);
-    const signals = brainResult.detected
+        const brainResult = this.detectBrainSignals(canonicalName);
+
+    const signals = brainResult.hasFreshRelationshipThought
       ? brainResult.signals
       : this.analyzeInteraction(
           canonicalName,
