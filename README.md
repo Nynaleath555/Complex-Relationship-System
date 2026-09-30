@@ -1,4 +1,4 @@
-# 👥💕 🤝💗🔥🫂💚 ⚖️ Nynaleath's Complex Relationship System V2.1
+# 👥💕 🤝💗🔥🫂💚 ⚖️ Nynaleath's Complex Relationship System V2.2
 
 A dynamic relationship system for AI Dungeon designed to make NPC relationships develop more gradually, naturally, and realistically.
 
@@ -78,19 +78,18 @@ Complex relationship wasn't tested with Auto Cards or another scripts apart of I
 
 ## 📦 Installation
 ### Requirements
--AI Dungeon script edit mode
--Inner Self original code by Lewd Leah 
+-AI Dungeon script edit mode 
 -Basic familiarity with AI Dungeon scripting
 
 ### Setup
--Erase all code of your library, input, context and output
--Copy Inner Self original code library and paste into your library
--Copy Complex Relationship System library and paste into your library, below of Inner Self original code
--Copy Complex Relationship System input and paste into your input
--Copy Complex Relationship System context and paste into your context
--Copy Complex Relationship System output and paste into your output
--Add the recommended AI Instructions and Author's Note.
--Start your scenario.
+- Erase all code of your library, input, context and output
+- Copy library P1-Modified IS and paste into your library
+- Copy library P2 -Complex REL and paste into your library, below of P1 library
+- Copy Complex Relationship System input and paste into your input
+- Copy Complex Relationship System context and paste into your context
+- Copy Complex Relationship System output and paste into your output
+- Add the recommended AI Instructions and Author's Note.
+- Start your scenario.
 
 # 📊 Relationship states
 Each relationship dimension has several descriptive states.
@@ -153,10 +152,10 @@ If you use or modify this system in your scenario, I'd love to be credited with 
 Attribution
 Complex Relationship System
 Created by Nynaleath
-Designed to be compatible with Inner Self by LewdLeah.
+All the credits of the original Inner Self code to Lewd Leah
 
 # ❤️ Credits
 Created by Nynaleath.
 Originally developed for 🎼 The Melody Next Door 🎶.
-Designed for compatibility with Inner Self by LewdLeah.
+
 If you use this system, thank you for giving it a try — and please consider giving credit!
