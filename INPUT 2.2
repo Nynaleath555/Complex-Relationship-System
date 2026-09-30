@@ -1,0 +1,16 @@
+InnerSelf("input");
+
+const modifier = (text) => {
+  const relationships = REL.init();
+  REL.ensureConfigCard();
+  const manualEdit = REL.applyManualEdit();
+  relationships.lastInput = String(text || "");
+  relationships.turn += 1;
+
+  if (manualEdit.applied) {
+    relationships.skipNextOutputAnalysis = false;
+    RELStatus.update(manualEdit.name);
+  }
+  return { text };
+};
+modifier(text);
