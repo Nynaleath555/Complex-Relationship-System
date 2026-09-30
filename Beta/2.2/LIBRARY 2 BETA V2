@@ -685,6 +685,49 @@ const REL = {
         String(item.key || "").toLowerCase() +
         " " +
         String(item.thought || "");
+    /*
+     * Romantic signals from fresh Brain thoughts.
+     *
+     * Brain remains authoritative on turns where it has produced
+     * a fresh relationship thought. The normal current-turn
+     * input/output detector is not mixed into these signals.
+     */
+    const brainRomanticSignals = this.detectRomanticSignals(
+      name,
+      "",
+      allFreshText,
+      true
+    );
+
+    signals.romanticReciprocity =
+      brainRomanticSignals.romanticReciprocity;
+
+    signals.romanticInitiation =
+      brainRomanticSignals.romanticInitiation;
+
+    signals.romanticAcceptance =
+      brainRomanticSignals.romanticAcceptance;
+
+    signals.romanticAffection =
+      brainRomanticSignals.romanticAffection;
+
+    signals.romanticCloseness =
+      brainRomanticSignals.romanticCloseness;
+
+    signals.romanticVerbalReciprocity =
+      brainRomanticSignals.romanticVerbalReciprocity;
+
+    signals.romanticVulnerability =
+      brainRomanticSignals.romanticVulnerability;
+
+    signals.romanticCommitment =
+      brainRomanticSignals.romanticCommitment;
+
+    signals.intimateReciprocity =
+      brainRomanticSignals.intimateReciprocity;
+
+    signals.romanticRefusal =
+      brainRomanticSignals.romanticRefusal;
 
       mark("spentTime", [
         /\b(?:spend|spent|spending|hang(?:ed|ing)?\s+out|visit(?:ed|ing)?|joined|stay(?:ed|ing)?)\b[\s\S]{0,100}\b(?:together|with|alone)\b/i,
@@ -766,28 +809,13 @@ const REL = {
        * Refusal is deliberately strict.
        * Hesitation, uncertainty, thought, pauses, "maybe", etc. are NOT refusals.
        */
-      mark("romanticRefusal", [
-        /\b(?:refuses?|refused|rejects?|rejected|says?\s+no|said\s+no|tells?\s+you\s+no|told\s+you\s+no|not\s+interested)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|date|romance|advance|relationship)\b/i,
-        /\b(?:pulls?|pulled|turns?|turned|backs?|backed|steps?|stepped)\s+away\b[\s\S]{0,90}\b(?:kiss|touch|hug|embrace|cuddle|flirt|romance|advance|close|closer)\b/i,
-        /\b(?:breaks?|broke|ends?|ended|stops?|stopped)\s+(?:the\s+)?(?:kiss|embrace|hug|cuddle|touch|flirting)\b/i,
-        /\b(?:pushes?|pushed)\s+(?:you|them|him|her)\s+away\b[\s\S]{0,70}\b(?:kiss|touch|embrace|hug|cuddle|romance|advance)\b/i
-      ], source);
+      
 
       /*
        * Positive reciprocity:
        * direct return, mutuality, continuation and active participation.
        */
-      mark("romanticReciprocity", [
-        /\b(?:kiss(?:es|ed|ing)?|hug(?:s|ged|ging)?|embrace(?:s|d|ing)?|cuddle(?:s|d|ing)?|touch(?:es|ed|ing)?)\b[\s\S]{0,120}\b(?:back|again|too|in\s+return|each\s+other|one\s+another|mutual(?:ly)?|together)\b/i,
-        /\b(?:returns?|returned|accepts?|accepted|welcomes?|welcomed|mirrors?|mirrored|matches?|matched)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|gesture|affection)\b/i,
-        /\b(?:mutual(?:ly)?|each\s+other|one\s+another|together|both|in\s+sync|mirroring)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|caress|close)\b/i,
-        /\b(?:doesn't|does\s+not|didn't|did\s+not)\s+(?:pull\s+away|push\s+away|resist|stop|break|move\s+away)\b[\s\S]{0,80}\b(?:kiss|touch|hug|embrace|cuddle|close|together)\b/i,
-        /\b(?:continues?|continued|keeps?|kept|deepens?|deepened|lingers?|lingered|stays?|stayed|remains?|remained)\b[\s\S]{0,90}\b(?:the\s+kiss|kissing|touching|embracing|hugging|cuddling|close|closer|together|against)\b/i,
-        /\b(?:leans?|leaned)\s+in(?:\s+closer)?\b[\s\S]{0,80}\b(?:kiss(?:es|ed|ing)?|touch(?:es|ed|ing)?|embrace(?:s|d|ing)?|hug(?:s|ged|ging)?|cuddle(?:s|d|ing)?)\b/i,
-        /\b(?:presses?|pressed|brushes?|brushed|touches?|touched)\s+(?:their|his|her)\s+lips?\s+(?:against|to)\s+yours\b/i,
-        /\b(?:meets?|met)\s+your\s+(?:lips|mouth)\b/i,
-        /\b(?:pulls?|pulled|draws?|drew)\s+you\s+(?:closer|close|against)\b/i
-      ], source);
+      
 
       mark("rivalInteraction", [
         /\b(?:jealous|jealousy|insecure|threatened)\b[\s\S]{0,120}\b(?:someone\s+else|another|other|rival|ex|stranger)\b/i,
@@ -803,9 +831,9 @@ const REL = {
     /*
      * Do not let speculative wording erase a concrete realized action.
      */
-    const hasRealizedAction =
+       const hasRealizedAction =
       relationshipThoughts.some(item =>
-        /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|leans?\s+in|moved?\s+closer|pulled?\s+closer|returned?|accepted?|deepened?|continued?|lingered?)\b/i.test(
+        /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|leans?\s+in|moved?\s+closer|pulled?\s+closer|returned?|accepted?|deepened?|continued?|lingered?|opened?\s+up|confessed?|admitted?|asked?\s+you\s+out|agreed?|chose?|chooses?|stayed?\s+close)\b/i.test(
           String(item.thought || "")
         )
       );
@@ -1772,18 +1800,14 @@ const REL = {
         /\b(?:hands?|fingers?)\b[\s\S]{0,70}\b(?:waist|hip|back|neck|nape|cheek|face|hair|thigh)\b/i
       ]),
 
-      romanticReciprocity: this.detectStrongRomanticReciprocity(
+            ...this.detectRomanticSignals(
         name,
         input,
-        output
+        output,
+        false
       ),
 
-            romanticRefusal: this.hasAny(String(output || ""), [
-        /\b(?:refuses?|refused|rejects?|rejected|says?\s+no|said\s+no|tells?\s+you\s+no|told\s+you\s+no|not\s+interested)\b[\s\S]{0,100}\b(?:kiss|touch|hug|embrace|cuddle|flirt|date|romance|advance|relationship)\b/i,
-        /\b(?:pulls?|pulled|turns?|turned|backs?|backed|steps?|stepped)\s+away\b[\s\S]{0,90}\b(?:kiss|touch|hug|embrace|cuddle|flirt|romance|advance|close|closer)\b/i,
-        /\b(?:breaks?|broke|ends?|ended|stops?|stopped)\s+(?:the\s+)?(?:kiss|embrace|hug|cuddle|touch|flirting)\b/i,
-        /\b(?:pushes?|pushed)\s+(?:you|them|him|her)\s+away\b[\s\S]{0,70}\b(?:kiss|touch|embrace|hug|cuddle|romance|advance)\b/i
-      ]),
+            
 
       rivalInteraction: this.hasAny(combined, [
         /\b(?:flirt(?:s|ed|ing)?|kiss(?:es|ed|ing)?|hug(?:s|ged|ging)?|date(?:s|d|ting)?|romance(?:s|d|ing)?|dance(?:s|d|ing)?)\b[\s\S]{0,100}\b(?:another|someone\s+else|other|rival|ex|stranger)\b/i,
@@ -2242,6 +2266,18 @@ const REL = {
       affectionDelta -= 2;
     }
 
+       /*
+     * ---------------------------------------------------------
+     * ROMANTIC / ATTRACTION DELTAS
+     * ---------------------------------------------------------
+     *
+     * Positive romantic behavior has multiple independent ways
+     * to increase Romance.
+     *
+     * Refusal remains strict and only reduces Romance when the
+     * NPC clearly rejects the player's romantic/intimate advance.
+     */
+
     if (signals.flirting) {
       attractionDelta += 1.2;
     }
@@ -2250,11 +2286,147 @@ const REL = {
       attractionDelta += 1;
     }
 
-    if (signals.flirting && signals.romanticReciprocity) {
+    if (signals.romanticReciprocity) {
+      attractionDelta += 0.9;
+      affectionDelta += 0.45;
+    }
+
+    if (signals.romanticInitiation) {
+      attractionDelta += 1.1;
+      affectionDelta += 0.45;
+    }
+
+    if (signals.romanticAcceptance) {
+      affectionDelta += 0.4;
+    }
+
+    if (signals.romanticAffection) {
+      attractionDelta += 0.4;
+      affectionDelta += 0.8;
+    }
+
+    if (signals.romanticCloseness) {
+      attractionDelta += 0.5;
+      affectionDelta += 0.5;
+    }
+
+    if (signals.romanticVerbalReciprocity) {
+      attractionDelta += 0.6;
+      affectionDelta += 0.8;
+    }
+
+    if (signals.romanticVulnerability) {
+      affectionDelta += 0.9;
+    }
+
+    if (signals.romanticCommitment) {
+      affectionDelta += 1;
+    }
+
+    /*
+     * Flirting + direct reciprocity gets an extra attraction boost.
+     */
+    if (
+      signals.flirting &&
+      signals.romanticReciprocity
+    ) {
       attractionDelta += 0.9;
     }
 
+    /*
+     * Intimate participation affects Attraction and Affection,
+     * but does NOT automatically count as romantic progression.
+     */
+    if (signals.intimateReciprocity) {
+      attractionDelta += 1.4;
+      affectionDelta += 0.5;
+    }
+
+    /*
+     * Romance progression.
+     *
+     * These are deliberately independent so a romantic turn can
+     * progress through different kinds of behavior:
+     *
+     * kiss back
+     * NPC initiates
+     * accepts a date
+     * affectionate gesture
+     * stays physically close
+     * returns feelings
+     * emotional vulnerability
+     * commitment
+     */
+    if (signals.romanticReciprocity) {
+      romanceDelta += 1.4;
+    }
+
+    if (signals.romanticInitiation) {
+      romanceDelta += 1.6;
+    }
+
+    if (signals.romanticAcceptance) {
+      romanceDelta += 1.0;
+    }
+
+    if (signals.romanticAffection) {
+      romanceDelta += 0.6;
+    }
+
+    if (signals.romanticCloseness) {
+      romanceDelta += 0.4;
+    }
+
+    if (signals.romanticVerbalReciprocity) {
+      romanceDelta += 1.2;
+    }
+
+    if (signals.romanticVulnerability) {
+      romanceDelta += 0.8;
+    }
+
+    if (signals.romanticCommitment) {
+      romanceDelta += 1.8;
+    }
+
+    /*
+     * Existing relationship synergy is preserved, but now applies
+     * to any meaningful positive romantic progression, not only
+     * "kisses back".
+     */
+    const meaningfulRomanticProgress =
+      signals.romanticReciprocity ||
+      signals.romanticInitiation ||
+      signals.romanticAcceptance ||
+      signals.romanticAffection ||
+      signals.romanticCloseness ||
+      signals.romanticVerbalReciprocity ||
+      signals.romanticVulnerability ||
+      signals.romanticCommitment;
+
+    if (meaningfulRomanticProgress) {
+      if (
+        character.friendship >= 30 &&
+        character.trust >= 50 &&
+        character.comfort >= 35
+      ) {
+        romanceDelta += 0.6;
+      }
+
+      if (
+        character.attraction >= 25 ||
+        character.affection >= 20
+      ) {
+        romanceDelta += 0.45;
+      }
+    }
+
+    /*
+     * STRICT NEGATIVE:
+     * only unmistakable romantic/intimate rejection lowers Romance.
+     */
     if (signals.romanticRefusal) {
+      romanceDelta -= 1;
       attractionDelta -= 0.5;
     }
 
