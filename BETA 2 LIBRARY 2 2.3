@@ -837,7 +837,7 @@ const REL = {
 
 const hasRealizedAction =
   relationshipThoughts.some(item =>
-    /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|lean(?:s|ed|ing)?\s+in|lean(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+against|mold(?:s|ed|ing)?\s+against|nuzzle(?:s|d|ing)?|snuggle(?:s|d|ing)?|settle(?:s|d|ing)?\s+(?:into|against)|wrap(?:s|ped|ping)?\s+(?:their|his|her)\s+arms\s+around|press(?:es|ed|ing)?\s+(?:their|his|her)\s+(?:body|chest)\s+against|moves?\s+closer|moved?\s+closer|pulls?\s+closer|pulled?\s+closer|returns?|returned?|accepts?|accepted?|deepens?|deepened?|continues?|continued?|lingers?|lingered?|yields?|yielded?|surrenders?|surrendered?|opens?\s+up|opened?\s+up|confesses?|confessed?|admits?|admitted?|asks?\s+you\s+out|agrees?|agreed?|chooses?|chose|stays?\s+close|stayed?\s+close|promises?|promised?|wants?\s+to\s+stay|wants?\s+(?:this|that)\s+too|cares?\s+(?:about\s+you\s+)?too|feels?\s+the\s+same|don['’]?\s+want\s+(?:this|it)\s+to\s+end|never\s+wants?\s+(?:this|it)\s+to\s+end|don['’]?\s+want\s+to\s+let\s+go|chooses?\s+you|feels?\s+like\s+home|feels?\s+safe\s+with\s+you|feel\s+safe\s+being\s+vulnerable)\b
+    /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|lean(?:s|ed|ing)?\s+in|lean(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+against|mold(?:s|ed|ing)?\s+against|nuzzle(?:s|d|ing)?|snuggle(?:s|d|ing)?|settle(?:s|d|ing)?\s+(?:into|against)|wrap(?:s|ped|ping)?\s+(?:their|his|her)\s+arms\s+around|press(?:es|ed|ing)?\s+(?:their|his|her)\s+(?:body|chest)\s+against|moves?\s+closer|moved?\s+closer|pulls?\s+closer|pulled?\s+closer|returns?|returned?|accepts?|accepted?|deepens?|deepened?|continues?|continued?|lingers?|lingered?|yields?|yielded?|surrenders?|surrendered?|opens?\s+up|opened?\s+up|confesses?|confessed?|admits?|admitted?|asks?\s+you\s+out|agrees?|agreed?|chooses?|chose|stays?\s+close|stayed?\s+close|promises?|promised?|wants?\s+to\s+stay|wants?\s+(?:this|that)\s+too|cares?\s+(?:about\s+you\s+)?too|feels?\s+the\s+same|don['’]?\s+want\s+(?:this|it)\s+to\s+end|never\s+wants?\s+(?:this|it)\s+to\s+end|don['’]?\s+want\s+to\s+let\s+go|chooses?\s+you|feels?\s+like\s+home|feels?\s+safe\s+with\s+you|feel\s+safe\s+being\s+vulnerable)\b/i.test(
     )
   );
 
@@ -2582,6 +2582,33 @@ detectStrongRomanticReciprocity: function (name, input, output) {
         romanceDelta += 0.45;
       }
     }
+        /*
+     * Deep romantic connection: emotional reciprocity becomes more
+     * important when paired with vulnerability or commitment.
+     */
+    const deepRomanticConnection =
+      signals.romanticVerbalReciprocity &&
+      (
+        signals.romanticVulnerability ||
+        signals.romanticCommitment
+      );
+
+    if (deepRomanticConnection) {
+      romanceDelta += 1.5;
+    }
+
+    /*
+     * Mutual affectionate closeness is stronger than simple
+     * physical contact on its own.
+     */
+    const mutualAffectionateBond =
+      signals.romanticReciprocity &&
+      signals.romanticAffection &&
+      signals.romanticCloseness;
+
+    if (mutualAffectionateBond) {
+      romanceDelta += 0.75;
+    }
 
     /*
      * STRICT NEGATIVE:
@@ -2590,29 +2617,6 @@ detectStrongRomanticReciprocity: function (name, input, output) {
     if (signals.romanticRefusal) {
       romanceDelta -= 1;
       attractionDelta -= 0.5;
-    }
-
-    if (signals.romanticReciprocity) {
-      romanceDelta += 1.4;
-
-      if (
-        character.friendship >= 30 &&
-        character.trust >= 50 &&
-        character.comfort >= 35
-      ) {
-        romanceDelta += 0.6;
-      }
-
-      if (
-        character.attraction >= 25 ||
-        character.affection >= 20
-      ) {
-        romanceDelta += 0.45;
-      }
-    }
-
-    if (signals.romanticRefusal) {
-      romanceDelta -= 1;
     }
 
     if (signals.betrayal && character.romance > 0) {
