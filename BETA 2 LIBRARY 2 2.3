@@ -837,8 +837,7 @@ const REL = {
 
 const hasRealizedAction =
   relationshipThoughts.some(item =>
-    /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|lean(?:s|ed|ing)?\s+in|lean(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+against|mold(?:s|ed|ing)?\s+against|nuzzle(?:s|d|ing)?|snuggle(?:s|d|ing)?|settle(?:s|d|ing)?\s+(?:into|against)|wrap(?:s|ped|ping)?\s+(?:their|his|her)\s+arms\s+around|press(?:es|ed|ing)?\s+(?:their|his|her)\s+(?:body|chest)\s+against|moves?\s+closer|moved?\s+closer|pulls?\s+closer|pulled?\s+closer|returns?|returned?|accepts?|accepted?|deepens?|deepened?|continues?|continued?|lingers?|lingered?|yields?|yielded?|surrenders?|surrendered?|opens?\s+up|opened?\s+up|confesses?|confessed?|admits?|admitted?|asks?\s+you\s+out|agrees?|agreed?|chooses?|chose|stays?\s+close|stayed?\s+close|promises?|promised?|wants?\s+to\s+stay)\b/i.test(
-      String(item.thought || "")
+    /\b(?:kiss(?:ed|es|ing)?|touch(?:ed|es|ing)?|hug(?:ged|s|ging)?|embrace(?:d|s|ing)?|cuddle(?:d|s|ing)?|caress(?:ed|s|ing)?|flirt(?:ed|s|ing)?|tease(?:d|s|ing)?|lean(?:s|ed|ing)?\s+in|lean(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+into|melt(?:s|ed|ing)?\s+against|mold(?:s|ed|ing)?\s+against|nuzzle(?:s|d|ing)?|snuggle(?:s|d|ing)?|settle(?:s|d|ing)?\s+(?:into|against)|wrap(?:s|ped|ping)?\s+(?:their|his|her)\s+arms\s+around|press(?:es|ed|ing)?\s+(?:their|his|her)\s+(?:body|chest)\s+against|moves?\s+closer|moved?\s+closer|pulls?\s+closer|pulled?\s+closer|returns?|returned?|accepts?|accepted?|deepens?|deepened?|continues?|continued?|lingers?|lingered?|yields?|yielded?|surrenders?|surrendered?|opens?\s+up|opened?\s+up|confesses?|confessed?|admits?|admitted?|asks?\s+you\s+out|agrees?|agreed?|chooses?|chose|stays?\s+close|stayed?\s+close|promises?|promised?|wants?\s+to\s+stay|wants?\s+(?:this|that)\s+too|cares?\s+(?:about\s+you\s+)?too|feels?\s+the\s+same|don['’]?\s+want\s+(?:this|it)\s+to\s+end|never\s+wants?\s+(?:this|it)\s+to\s+end|don['’]?\s+want\s+to\s+let\s+go|chooses?\s+you|feels?\s+like\s+home|feels?\s+safe\s+with\s+you|feel\s+safe\s+being\s+vulnerable)\b
     )
   );
 
@@ -1040,8 +1039,8 @@ detectRomanticSignals: function (name, input, output, brainMode) {
     gift:
       /\b(?:romantic\s+gift|romantic\s+present|love\s+letter|love\s+note|roses?|bouquet|jewelry|necklace|bracelet|valentine(?:'s)?\s+gift)\b/i,
 
-    words:
-      /\b(?:i\s+love\s+you|love\s+you|i\s+adore\s+you|my\s+feelings\s+for\s+you|confess(?:\s+my)?\s+feelings|romantic\s+feelings|want\s+to\s+be\s+with\s+you|tell\s+[^.!?]{0,40}\s+you\s+(?:that\s+)?i\s+(?:love|adore))\b/i,
+        words:
+      /\b(?:i\s+love\s+you|love\s+you|i\s+adore\s+you|my\s+feelings\s+for\s+you|confess(?:\s+my)?\s+feelings|romantic\s+feelings|want\s+to\s+be\s+with\s+you|tell\s+[^.!?]{0,40}\s+you\s+(?:that\s+)?i\s+(?:love|adore)|i\s+care\s+about\s+you|i\s+really\s+care\s+about\s+you|you\s+matter\s+to\s+me|i\s+want\s+(?:this|that)\s+with\s+you|i\s+want\s+to\s+keep\s+building\s+this\s+with\s+you|i\s+don['’]?t\s+want\s+(?:this|it)\s+to\s+end|i\s+don['’]?t\s+want\s+to\s+let\s+go|i\s+choose\s+you|i\s+want\s+us|i\s+want\s+you\s+in\s+my\s+life)\b/i,
 
     time:
       /\b(?:romantic\s+date|romantic\s+outing|romantic\s+evening|spend\s+time\s+alone|spend\s+the\s+evening\s+alone|just\s+the\s+two\s+of\s+us|one[-\s]on[-\s]one|private\s+evening|alone\s+together)\b/i,
@@ -1227,6 +1226,7 @@ detectRomanticSignals: function (name, input, output, brainMode) {
       /\bresponds?\s+to\s+your\s+touch\b/i,
       /\bmirrors?\s+your\s+touch\b/i,
       /\bmoves?\s+closer\s+to\s+you\b/i,
+      
 
       /* New action-based vocabulary */
       /\b(?:melts?|melted)\s+into\s+your\s+touch\b/i,
@@ -1235,7 +1235,19 @@ detectRomanticSignals: function (name, input, output, brainMode) {
       /\bwraps?\s+(?:their|his|her)\s+arms\s+around\s+you\b/i,
       /\bpresses?\s+(?:their|his|her)\s+(?:body|chest)\s+against\s+yours\b/i,
       /\breturns?\s+your\s+(?:caress|stroke|touch)\b/i,
-      /\bcaresses?\s+your\s+(?:hand|arm|face|cheek)\b/i
+      /\bcaresses?\s+your\s+(?:hand|arm|face|cheek)\b/i,
+      /\bsqueezes?\s+your\s+hand\s+back\b/i,
+      /\b(?:squeezes?|squeezed)\s+back\b/i,
+      /\bholds?\s+on\s+to\s+your\s+hand\b/i,
+      /\bdoesn['’]?t\s+let\s+go\s+of\s+your\s+hand\b/i,
+      /\bintertwines?\s+(?:their|his|her)\s+fingers\s+with\s+yours\b/i,
+      /\bwraps?\s+(?:their|his|her)\s+arms\s+around\s+you\s+in\s+return\b/i,
+      /\breturns?\s+your\s+embrace\b/i,
+      /\b(?:settles?|settled|snuggles?|snuggled)\s+against\s+you\b/i,
+      /\bleans?\s+into\s+you\b/i,
+      /\bpulls?\s+you\s+closer\b/i,
+      /\bnuzzles?\s+(?:against|into)\s+you\b/i,
+      /\brests?\s+(?:their|his|her)\s+head\s+(?:on|against)\s+your\s+(?:shoulder|chest)\b/i
     ],
 
     gift: [
@@ -1256,7 +1268,19 @@ detectRomanticSignals: function (name, input, output, brainMode) {
       /\bsays?\s+they\s+want\s+to\s+be\s+with\s+you\b/i,
       /\breturns?\s+your\s+confession\b/i,
       /\breciprocates?\s+your\s+feelings\b/i,
-      /\bsays?\s+they\s+feel\s+the\s+same\s+way\b/i
+      /\bsays?\s+they\s+feel\s+the\s+same\s+way\b/i,
+      /\bsays?\s+(?:they\s+)?care(?:d)?\s+(?:about\s+you\s+)?too\b/i,
+      /\btells?\s+you\s+they\s+feel\s+the\s+same\b/i,
+      /\bsays?\s+they\s+feel\s+the\s+same\s+about\s+you\b/i,
+      /\bsays?\s+they\s+want\s+(?:this|that)\s+too\b/i,
+      /\btells?\s+you\s+they\s+want\s+(?:this|that)\s+as\s+well\b/i,
+      /\bsays?\s+they\s+want\s+to\s+keep\s+building\s+this\s+with\s+you\b/i,
+      /\bsays?\s+they\s+don['’]?t\s+want\s+(?:this|it)\s+to\s+end\b/i,
+      /\bsays?\s+they\s+don['’]?t\s+want\s+to\s+let\s+go\b/i,
+      /\bsays?\s+they\s+choose\s+you\b/i,
+      /\bsays?\s+they\s+want\s+you\s+in\s+their\s+life\b/i,
+      /\bsays?\s+you\s+feel\s+like\s+home\b/i,
+      /\bsays?\s+this\s+feels?\s+like\s+home\b/i
     ],
 
     time: [
@@ -1375,7 +1399,12 @@ detectRomanticSignals: function (name, input, output, brainMode) {
     /\brests?\s+(?:their|his|her)\s+head\s+(?:against|on)\s+your\s+(?:shoulder|chest)\b/i,
     /\btouches?\s+your\s+(?:cheek|jaw|face)\s+with\s+(?:their|his|her)\s+(?:fingers?|hand)\b/i,
     /\bpresses?\s+(?:their|his|her)\s+forehead\s+against\s+yours\b/i,
-    /\btraces?\s+your\s+jaw\s+with\s+(?:their|his|her)\s+(?:fingers?|thumb)\b/i
+    /\btraces?\s+your\s+jaw\s+with\s+(?:their|his|her)\s+(?:fingers?|thumb)\b/i,
+    /\b(?:their|his|her)\s+thumb\s+(?:brushes?|brushed)\s+over\s+your\s+(?:knuckles?|hand)\b/i,
+    /\bfingers?\s+(?:tighten|tightened|curl|curled)\s+around\s+yours\b/i,
+    /\bwraps?\s+(?:their|his|her)\s+arms?\s+around\s+you\s+(?:in\s+return|again)?\b/i,
+    /\bpresses?\s+(?:their|his|her)\s+(?:cheek|forehead|temple)\s+(?:against|to)\s+you\b/i,
+    /\btraces?\s+(?:small\s+)?circles?\s+(?:over|along)\s+your\s+(?:hand|back|arm)\b/i
   ];
 
   result.romanticAffection =
@@ -1409,7 +1438,13 @@ detectRomanticSignals: function (name, input, output, brainMode) {
     /\brests?\s+(?:their|his|her)\s+head\s+(?:against|on)\s+your\s+(?:shoulder|chest)\b/i,
     /\bcloses?\s+the\s+remaining\s+distance\s+between\s+you\b/i,
     /\bpresses?\s+(?:their|his|her)\s+(?:body|shoulder|chest)\s+close\s+to\s+yours\b/i,
-    /\bleans?\s+(?:into|against)\s+your\s+body\b/i
+    /\bleans?\s+(?:into|against)\s+your\s+body\b/i,
+    /\b(?:feel|feels|felt|feeling)\b[\s\S]{0,30}\blike\s+home\b/i,
+    /\b(?:belong|belongs|belonging)\b[\s\S]{0,40}\b(?:with\s+you|to\s+you|together|us)\b/i,
+    /\b(?:choose|chooses|chose|chosen|choosing)\b[\s\S]{0,50}\b(?:this\s+closeness|you|us|this)\b/i,
+    /\b(?:grounding|grounded|anchored)\b[\s\S]{0,50}\b(?:with\s+you|by\s+you|your\s+presence|together)\b/i,
+    /\b(?:doesn['’]?t|do\s+not|never)\s+want\b[\s\S]{0,45}\b(?:to\s+let\s+go|(?:this|it)\s+to\s+end)\b/i,
+    /\b(?:wants?|want)\s+to\s+stay\s+(?:like\s+this|close|with\s+you)\b/i
   ];
 
   result.romanticCloseness =
@@ -1442,7 +1477,19 @@ detectRomanticSignals: function (name, input, output, brainMode) {
     /\bi\s+want\s+you\s+too\b/i,
     /\bi['’]?ve\s+been\s+falling\s+for\s+you\s+too\b/i,
     /\bi\s+have\s+the\s+same\s+feelings\b/i,
-    /\bi\s+feel\s+the\s+same\s+about\s+you\b/i
+    /\bi\s+feel\s+the\s+same\s+about\s+you\b/i,
+    /\bi\s+care\s+(?:about\s+you\s+)?(?:too|as\s+well)\b/i,
+    /\bi['’]?m\s+glad\s+(?:you['’]?re|you\s+are)\s+here\b/i,
+    /\bi\s+really\s+want\s+this\s+with\s+you\b/i,
+    /\bi\s+want\s+to\s+keep\s+building\s+this\s+with\s+you\b/i,
+    /\bi\s+want\s+us\b/i,
+    /\bi\s+choose\s+you\b/i,
+    /\bi\s+don['’]?t\s+want\s+(?:this|it)\s+to\s+end\b/i,
+    /\bi\s+never\s+want\s+(?:this|it)\s+to\s+end\b/i,
+    /\bi\s+don['’]?t\s+want\s+to\s+let\s+go\b/i,
+    /\byou\s+feel\s+like\s+home\b/i,
+    /\bthis\s+feels?\s+like\s+home\b/i,
+    /\bi\s+feel\s+safe\s+with\s+you\b/i
   ];
 
   result.romanticVerbalReciprocity =
@@ -1474,7 +1521,14 @@ detectRomanticSignals: function (name, input, output, brainMode) {
     /\badmits?\s+(?:they['’]?ve|they\s+have)\s+(?:never|rarely)\s+let\s+anyone\s+this\s+close\b/i,
     /\badmits?\s+(?:that\s+)?they['’]?re\s+afraid\s+of\s+being\s+vulnerable\s+with\s+you\b/i,
     /\bconfesses?\s+that\s+they\s+feel\s+safe\s+with\s+you\b/i,
-    /\badmits?\s+they\s+don't\s+know\s+how\s+to\s+handle\s+their\s+feelings\s+for\s+you\b/i
+    /\badmits?\s+they\s+don't\s+know\s+how\s+to\s+handle\s+their\s+feelings\s+for\s+you\b/i,
+    /\b(?:i|they)\s+feel\s+safe\s+being\s+vulnerable\b/i,
+    /\b(?:i|they)\s+(?:don['’]?t|do\s+not)\s+have\s+to\s+(?:pretend|be\s+strong|be\s+careful|hide|hold\s+back)\b/i,
+    /\b(?:i|they)\s+can\s+be\s+(?:myself|themselves)\s+with\s+you\b/i,
+    /\b(?:i|they)\s+(?:let|lets|letting)\s+(?:myself|themselves|me)\s+(?:open\s+up|be\s+close|stay|lean\s+in)\b/i,
+    /\b(?:i|they)\s+can\s+breathe\s+(?:around|with)\s+you\b/i,
+    /\b(?:i|they)\s+feel\s+safe\s+(?:saying|telling)\s+you\s+what\s+(?:i|they)['’]?m\s+thinking\b/i,
+    /\bdon['’]?t\s+need\s+to\s+pretend\s+(?:i|they)\s+don['’]?t\s+care\b/i
   ];
 
   result.romanticVulnerability =
@@ -1503,7 +1557,17 @@ detectRomanticSignals: function (name, input, output, brainMode) {
     /\bwants?\s+to\s+wake\s+up\s+(?:beside|next\s+to)\s+you\b/i,
     /\bchooses?\s+to\s+stay\s+with\s+you\b/i,
     /\btalks?\s+about\s+growing\s+old\s+(?:with|beside)\s+you\b/i,
-    /\bwants?\s+to\s+keep\s+(?:you|this\s+relationship)\s+in\s+their\s+life\b/i
+    /\bwants?\s+to\s+keep\s+(?:you|this\s+relationship)\s+in\s+their\s+life\b/i,
+    /\bwants?\s+to\s+keep\s+building\s+this\s+with\s+you\b/i,
+    /\bwants?\s+(?:this|that)\s+with\s+you\b/i,
+    /\bwants?\s+to\s+build\s+this\s+with\s+you\b/i,
+    /\bdoesn['’]?t\s+want\s+(?:this|it)\s+to\s+end\b/i,
+    /\bnever\s+wants?\s+(?:this|it)\s+to\s+end\b/i,
+    /\bdoesn['’]?t\s+want\s+to\s+let\s+go\b/i,
+    /\bwants?\s+to\s+stay\s+(?:like\s+this|close|with\s+you)\b/i,
+    /\bchooses?\s+(?:this\s+closeness|to\s+stay\s+with\s+you)\b/i,
+    /\bwants?\s+you\s+in\s+(?:his|her|their)\s+life\b/i,
+    /\b(?:this|it)\s+feels?\s+like\s+home\b/i
   ];
 
   result.romanticCommitment =
